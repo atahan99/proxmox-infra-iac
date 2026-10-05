@@ -1,0 +1,121 @@
+# ENV=prod: the real server (IDs/IPs as in tofu/prod.tfvars).
+all:
+  vars:
+    ansible_user: root
+  children:
+    pve_hosts:
+      hosts:
+        pve:
+          # Root-only container config (lxc_devices role); OpenTofu creates the guests.
+          lxc_devices_containers:
+            "100": # nas: the whole USB disk for Samba
+              lines:
+                - "mp0: /mnt/external,mp=/mnt/External"
+              idmap: true
+            "101": # plex: movies + iGPU (renderD128, mode so the plex user needs no gid)
+              lines:
+                - "mp0: /mnt/external/Movies,mp=/mnt/Movies"
+                - "dev0: /dev/dri/renderD128,mode=0666"
+                - "features: keyctl=1,nesting=1"
+            "103": # kasm
+              lines:
+                - "dev0: /dev/net/tun"
+                - "features: fuse=1,keyctl=1,nesting=1"
+            "104": # docker-hw (privileged): Frigate + Immich, only their folders of the USB disk
+              lines:
+                - "mp0: /mnt/external/FrigateNVR,mp=/mnt/external/FrigateNVR"
+                - "mp1: /mnt/external/Personal/Immich,mp=/mnt/external/Personal/Immich"
+                - "dev0: /dev/dri/renderD128,mode=0666"
+                # Coral: whole bus, it re-enumerates (new device id) after the firmware load
+                - "lxc.mount.entry: /dev/bus/usb/002 dev/bus/usb/002 none bind,optional,create=dir"
+                # Webcam + mic: raw lines because lxc-video-sync re-creates the nodes on replug
+                - "features: nesting=1" # privileged: OpenTofu's token can't set features here
+                - "lxc.cgroup2.devices.allow: c 81:* rwm"
+                - "lxc.mount.entry: /dev/video0 dev/video0 none bind,optional,create=file"
+                - "lxc.mount.entry: /dev/video1 dev/video1 none bind,optional,create=file"
+                - "lxc.mount.entry: /dev/media0 dev/media0 none bind,optional,create=file"
+                - "lxc.mount.entry: /dev/snd dev/snd none bind,optional,create=dir"
+            "105": # tailscale
+              lines:
+                - "dev0: /dev/net/tun"
+            "108": # pbs: datastore on the USB disk
+              lines:
+                - "mp0: /mnt/external/Backups,mp=/mnt/backups"
+                - "features: fuse=1,nesting=1"
+            # docker-apps: the stacks' folders of the USB disk + vpn-services (tun). Per folder, never the whole
+            # disk: the PBS datastore (Backups/, host uid 100034) is uid 34 here, so root in this CT could delete
+            # every backup. Filebrowser sees only these folders.
+            "109":
+              lines:
+                - "mp0: /mnt/external/Books,mp=/mnt/external/Books"
+                - "mp1: /mnt/external/Downloads,mp=/mnt/external/Downloads"
+                - "mp2: /mnt/external/Movies,mp=/mnt/external/Movies"
+                - "mp3: /mnt/external/Shared,mp=/mnt/external/Shared"
+                - "mp4: /mnt/external/Torrents,mp=/mnt/external/Torrents"
+                - "dev0: /dev/net/tun"
+                - "features: keyctl=1,nesting=1"
+              idmap: true
+            "110": # security (ClamAV): the USB disk read-only (it only scans; idmap so it can read uid 1000's files)
+              lines:
+                - "mp0: /mnt/external,mp=/mnt/external,ro=1"
+              idmap: true
+    lxcs:
+      vars:
+        # A rebuild gives every guest a new host key: trusted on first use (install.md removes the old ones)
+        ansible_ssh_common_args: -o StrictHostKeyChecking=accept-new
+        # `make config-check` sets pct_remote=true: reach today's containers through the host (pct exec).
+        ansible_connection: "{{ 'community.proxmox.proxmox_pct_remote' if (pct_remote | default(false) | bool) else 'ssh' }}"
+        ansible_paramiko_host: "{{ hostvars['pve'].ansible_host }}" # used only by pct_remote
+        proxmox_vmid: "{{ vmid }}"
+      hosts:
+        nas: {ansible_host: "{{ homelab_lan_prefix }}.180", vmid: 100}
+        plex: {ansible_host: "{{ homelab_lan_prefix }}.113", vmid: 101}
+        kasm: {ansible_host: "{{ homelab_lan_prefix }}.117", vmid: 103}
+        docker-hw: {ansible_host: "{{ homelab_lan_prefix }}.120", vmid: 104, common_beszel: false}
+        tailscale: {ansible_host: "{{ homelab_lan_prefix }}.121", vmid: 105}
+        adguard-primary: {ansible_host: "{{ homelab_lan_prefix }}.4", vmid: 106}
+        pbs: {ansible_host: "{{ homelab_lan_prefix }}.132", vmid: 108, common_updates: security}
+        docker-apps: {ansible_host: "{{ homelab_lan_prefix }}.122", vmid: 109, common_beszel: false}
+        security: {ansible_host: "{{ homelab_lan_prefix }}.133", vmid: 110}
+    # Role groups (hosts defined above under lxcs)
+    tailscale_servers:
+      hosts:
+        tailscale:
+    samba:
+      hosts:
+        nas:
+    adguard:
+      hosts:
+        adguard-primary:
+    plex_servers:
+      hosts:
+        plex:
+    pbs_servers:
+      hosts:
+        pbs:
+    kasm_servers:
+      vars:
+        core_stacks_names: [hawser] # Dockhand watches Kasm's containers (monitor only, no stacks)
+        core_stacks_secrets:
+          hawser/hawser.env: {TOKEN: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/hawser/' ~ inventory_hostname) }}"}
+      hosts:
+        kasm:
+    clamav_servers:
+      hosts:
+        security:
+    docker_apps:
+      vars:
+        dockhand_config_remotes:
+          - {name: docker-hw}
+          - {name: kasm} # monitor only: Kasm manages its own containers
+        dockhand_config_stacks: "{{ docker_apps_stacks }}" # group_vars/docker_apps.yml
+      hosts:
+        docker-apps:
+    docker_hw:
+      vars:
+        core_stacks_names: [hawser] # started by Ansible; Dockhand deploys the rest through it
+        core_stacks_secrets:
+          hawser/hawser.env: {TOKEN: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/hawser/' ~ inventory_hostname) }}"}
+        dockhand_config_stacks: [agents, frigate, immich] # deployed here by Dockhand (Hawser agent)
+      hosts:
+        docker-hw:

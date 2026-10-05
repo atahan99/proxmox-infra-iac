@@ -1,0 +1,15 @@
+# The physical host is the same in every ENV. Site values from the environment (see group_vars/all.yml).
+ansible_host: "{{ pve_address }}"
+pve_address: "{{ lookup('ansible.builtin.env', 'PVE_IP') or undef(hint='PVE_IP is not set: run through make') }}"
+pve_prefix: "{{ homelab_lan_cidr.split('/')[1] }}"
+pve_gateway: "{{ homelab_gateway }}"
+pve_nic: "{{ lookup('ansible.builtin.env', 'PVE_NIC') or undef(hint='PVE_NIC is not set: run through make') }}"
+pve_mac: "{{ lookup('ansible.builtin.env', 'PVE_MAC') or undef(hint='PVE_MAC is not set: run through make') }}"
+
+# Hardware (NucBox, N150): iGPU, Coral USB on bus 2 with the Seagate disk, C920 webcam.
+# usbcore.quirks k = no LPM (Coral 1a6e:089a before / 18d1:9302 after firmware load),
+# usb-storage u = no UAS for the Seagate (0bc2:2037).
+pve_kernel_cmdline: >-
+  quiet intel_iommu=on iommu=pt usbcore.quirks=1a6e:089a:k,18d1:9302:k
+  usbcore.autosuspend=-1 usb-storage.quirks=0bc2:2037:u
+pve_usb_disk_uuid: "{{ lookup('ansible.builtin.env', 'PVE_USB_DISK_UUID') or undef(hint='PVE_USB_DISK_UUID is not set: run through make') }}" # /mnt/external (ext4)

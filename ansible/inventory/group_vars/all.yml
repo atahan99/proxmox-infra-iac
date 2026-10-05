@@ -1,0 +1,38 @@
+# Shared by every inventory (lab, prod).
+# Site values come from the environment: the Makefile runs Ansible under `pass-cli run --env-file homelab.env`.
+# Read here once; a missing one fails only where it is used.
+homelab_domain: "{{ lookup('ansible.builtin.env', 'HOMELAB_DOMAIN') or undef(hint='HOMELAB_DOMAIN is not set: run through make') }}"
+homelab_lan_cidr: "{{ lookup('ansible.builtin.env', 'HOMELAB_LAN_CIDR') or undef(hint='HOMELAB_LAN_CIDR is not set: run through make') }}"
+# ponytail: guest addresses are "<prefix>.<host number>" (host numbers as in tofu/*.tfvars), so a /24 only.
+homelab_lan_prefix: "{{ homelab_lan_cidr.split('/')[0].rsplit('.', 1)[0] }}"
+homelab_gateway: "{{ lookup('ansible.builtin.env', 'HOMELAB_GATEWAY') or undef(hint='HOMELAB_GATEWAY is not set: run through make') }}"
+homelab_dns_vip: "{{ lookup('ansible.builtin.env', 'HOMELAB_DNS_VIP') or undef(hint='HOMELAB_DNS_VIP is not set: run through make') }}"
+homelab_rpi3_ip: "{{ lookup('ansible.builtin.env', 'RPI3_IP') or undef(hint='RPI3_IP is not set: run through make') }}"
+timezone: "{{ lookup('ansible.builtin.env', 'HOMELAB_TZ') or undef(hint='HOMELAB_TZ is not set: run through make') }}"
+ssh_authorized_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKRIGv3fe6IIGbX6t07MTKAQPkmd31Qlnx6MQe+RPlKx mac-homelab
+
+# Every Docker stack gets these as its .env (core_stacks) and as Dockhand env vars (dockhand_config).
+# Guest IPs come from the inventory; the lab has none of those guests, so there they are the test CT's own.
+homelab_stack_env:
+  DOMAIN: "{{ core_stacks_domain }}"
+  TZ: "{{ timezone }}"
+  LATITUDE: "{{ lookup('ansible.builtin.env', 'HOMELAB_LATITUDE') or undef(hint='HOMELAB_LATITUDE is not set: run through make') }}"
+  LONGITUDE: "{{ lookup('ansible.builtin.env', 'HOMELAB_LONGITUDE') or undef(hint='HOMELAB_LONGITUDE is not set: run through make') }}"
+  LAN_CIDR: "{{ homelab_lan_cidr }}"
+  DNS_VIP: "{{ homelab_dns_vip }}"
+  GATEWAY_IP: "{{ homelab_gateway }}"
+  PVE_IP: "{{ hostvars['pve'].pve_address }}"
+  DOCKER_HW_IP: "{{ hostvars['docker-hw'].ansible_host | default(ansible_host) }}"
+  DOCKER_APPS_IP: "{{ hostvars['docker-apps'].ansible_host | default(ansible_host) }}"
+  PLEX_IP: "{{ hostvars['plex'].ansible_host | default(ansible_host) }}"
+  KASM_IP: "{{ hostvars['kasm'].ansible_host | default(ansible_host) }}"
+  PBS_IP: "{{ hostvars['pbs'].ansible_host | default(ansible_host) }}"
+  ADGUARD_IP: "{{ hostvars['adguard-primary'].ansible_host | default(ansible_host) }}"
+  HA_IP: "{{ lookup('ansible.builtin.env', 'HA_IP') or undef(hint='HA_IP is not set: run through make') }}"
+  RPI3_IP: "{{ homelab_rpi3_ip }}"
+  PIKVM_IP: "{{ lookup('ansible.builtin.env', 'PIKVM_IP') or undef(hint='PIKVM_IP is not set: run through make') }}"
+  MODEM_IP: "{{ lookup('ansible.builtin.env', 'MODEM_IP') or undef(hint='MODEM_IP is not set: run through make') }}"
+  SWITCH_IP: "{{ lookup('ansible.builtin.env', 'SWITCH_IP') or undef(hint='SWITCH_IP is not set: run through make') }}"
+  AP1_IP: "{{ lookup('ansible.builtin.env', 'AP1_IP') or undef(hint='AP1_IP is not set: run through make') }}"
+  AP2_IP: "{{ lookup('ansible.builtin.env', 'AP2_IP') or undef(hint='AP2_IP is not set: run through make') }}"

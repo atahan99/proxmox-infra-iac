@@ -1,0 +1,134 @@
+# ENV=lab: the real host (check mode only) + the throwaway test CT.
+all:
+  vars:
+    ansible_user: root
+    core_stacks_domain: "lab.{{ homelab_domain }}"
+    # Lab ntfy sender tokens: in the senders' settings and in ntfy's own token list.
+    lab_ntfy_grafana: "tk_{{ lookup('ansible.builtin.password', '.lab-secrets/ntfy-token-grafana chars=ascii_lowercase,digits length=29') }}"
+    lab_ntfy_scrutiny: "tk_{{ lookup('ansible.builtin.password', '.lab-secrets/ntfy-token-scrutiny chars=ascii_lowercase,digits length=29') }}"
+    lab_ntfy_clamav: "tk_{{ lookup('ansible.builtin.password', '.lab-secrets/ntfy-token-clamav chars=ascii_lowercase,digits length=29') }}"
+  children:
+    pve_hosts:
+      hosts:
+        pve:
+          lxc_devices_containers:
+            "990": # like docker-apps, minus the USB disk (a test CT never touches real data)
+              lines:
+                - "dev0: /dev/net/tun"
+                - "features: fuse=1,keyctl=1,nesting=1" # fuse: Kasm's rclone plugin (as kasm)
+              idmap: true
+    lxcs:
+      hosts:
+        iac-test:
+          ansible_host: "{{ homelab_lan_prefix }}.90"
+          vmid: 990
+          # New host key every rebuild: trusted on first use, pinned until `make apply/destroy ENV=lab` resets it
+          ansible_ssh_common_args: -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=.lab_known_hosts
+    # CT 990 also stands in for the security LXC (ClamAV): no USB disk, so it scans a test folder (filled by hand, e.g. with
+    # the EICAR test file) and alerts the lab's own ntfy through its own Traefik.
+    clamav_servers:
+      vars:
+        clamav_root: /srv/clamav-test
+        clamav_ntfy_url: "https://ntfy.{{ core_stacks_domain }}/homelab-security"
+        clamav_ntfy_resolve: "ntfy.{{ core_stacks_domain }}:443:{{ ansible_host }}" # its LAN IP: Traefik only lets LAN/Tailscale in
+        clamav_ntfy_token: "{{ lab_ntfy_clamav }}"
+      hosts:
+        iac-test:
+    # CT 990 stands in for docker-apps.
+    docker_apps:
+      vars:
+        # Traefik's template gives the real Cloudflare token (the lab needs a real certificate); every other
+        # secret of the lab's stacks is random, lab-only. Stacks the lab doesn't run get no secrets.
+        core_stacks_secrets:
+          authelia/authelia.env:
+            AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET: "{{ lookup('ansible.builtin.password', '.lab-secrets/authelia-jwt chars=ascii_letters,digits length=64') }}"
+            AUTHELIA_SESSION_SECRET: "{{ lookup('ansible.builtin.password', '.lab-secrets/authelia-session chars=ascii_letters,digits length=64') }}"
+            AUTHELIA_STORAGE_ENCRYPTION_KEY: "{{ lookup('ansible.builtin.password', '.lab-secrets/authelia-storage chars=ascii_letters,digits length=64') }}"
+          # Monitoring batch: random lab values; the exporters' logins are dummies (no real token in the lab).
+          monitoring/monitoring-grafana.env:
+            GF_SECURITY_ADMIN_USER: lab-admin
+            GF_SECURITY_ADMIN_PASSWORD: &lab_grafana_admin "{{ lookup('ansible.builtin.password', '.lab-secrets/grafana-admin chars=ascii_letters,digits length=24') }}"
+            NTFY_TOKEN: "{{ lab_ntfy_grafana }}"
+          monitoring/monitoring-pve-exporter.env: {PVE_TOKEN_VALUE: lab-dummy}
+          monitoring/monitoring-adguard-exporter.env: {ADGUARD_USERNAMES: "lab,lab", ADGUARD_PASSWORDS: "lab,lab"}
+          monitoring/monitoring-qbittorrent-exporter.env: {QBITTORRENT_USERNAME: lab, QBITTORRENT_PASSWORD: lab}
+          scrutiny/scrutiny.env:
+            SCRUTINY_NOTIFY_URLS: "ntfy://:{{ lab_ntfy_scrutiny }}@ntfy/homelab-critical?scheme=http&priority=max"
+          speedtest-tracker/speedtest-tracker.env:
+            APP_KEY: "base64:{{ lookup('ansible.builtin.password', '.lab-secrets/speedtest-app-key chars=ascii_letters,digits length=32') | b64encode }}"
+            ADMIN_EMAIL: lab@example.com
+            ADMIN_PASSWORD: "{{ lookup('ansible.builtin.password', '.lab-secrets/speedtest-admin chars=ascii_letters,digits length=24') }}"
+          ntfy/ntfy.env:
+            NTFY_AUTH_TOKENS: "alerts:{{ lab_ntfy_grafana }}:grafana,alerts:{{ lab_ntfy_scrutiny }}:scrutiny,alerts:{{ lab_ntfy_clamav }}:clamav"
+          ntfy/ntfy-users.env: {NTFY_AUTH_USERS: "{{ core_stacks_ntfy_users }}"}
+          # Media + productivity batch
+          vikunja/vikunja.env: {VIKUNJA_SERVICE_SECRET: "{{ lookup('ansible.builtin.password', '.lab-secrets/vikunja-secret chars=ascii_letters,digits length=64') }}"}
+          linkding/linkding.env: {LD_SUPERUSER_NAME: lab}
+          # Tools batch
+          convertx/convertx.env: {JWT_SECRET: "{{ lookup('ansible.builtin.password', '.lab-secrets/convertx-jwt chars=ascii_letters,digits length=64') }}"}
+          searxng/searxng.env: {SEARXNG_SECRET: "{{ lookup('ansible.builtin.password', '.lab-secrets/searxng-secret chars=ascii_letters,digits length=64') }}"}
+          filebrowser/filebrowser.env: {FILEBROWSER_ADMIN_PASSWORD: "{{ lookup('ansible.builtin.password', '.lab-secrets/filebrowser-admin chars=ascii_letters,digits length=24') }}"}
+          # Dozzle's mutual-TLS pair: a lab-only one, generated once into .lab-secrets/.
+          dozzle/dozzle_cert.pem: &lab_dozzle_cert "{{ lookup('pipe', 'mkdir -p ' ~ playbook_dir ~ '/.lab-secrets && cd ' ~ playbook_dir ~ '/.lab-secrets && { test -f dozzle_key.pem || openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj /CN=dozzle -keyout dozzle_key.pem -out dozzle_cert.pem 2>/dev/null; } && cat dozzle_cert.pem') }}"
+          dozzle/dozzle_key.pem: &lab_dozzle_key "{{ lookup('pipe', 'mkdir -p ' ~ playbook_dir ~ '/.lab-secrets && cd ' ~ playbook_dir ~ '/.lab-secrets && { test -f dozzle_key.pem || openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj /CN=dozzle -keyout dozzle_key.pem -out dozzle_cert.pem 2>/dev/null; } && cat dozzle_key.pem') }}"
+          homepage/homepage.env: {HOMEPAGE_VAR_GRAFANA_USERNAME: lab-admin, HOMEPAGE_VAR_GRAFANA_PASSWORD: *lab_grafana_admin}
+        core_stacks_authelia_user: lab
+        core_stacks_ntfy_admin_user: lab
+        core_stacks_ntfy_admin_password: "{{ lookup('ansible.builtin.password', '.lab-secrets/ntfy-lab chars=ascii_letters,digits length=24') }}"
+        core_stacks_ntfy_alerts_password: "{{ lookup('ansible.builtin.password', '.lab-secrets/ntfy-alerts chars=ascii_letters,digits length=24') }}"
+        dockhand_config_admin_user: lab-admin
+        dockhand_config_admin_password: "{{ lookup('ansible.builtin.password', '.lab-secrets/dockhand-admin chars=ascii_letters,digits length=24') }}"
+        # Real GitHub token (read-only, this repo only): the lab clones the real repo.
+        dockhand_config_stacks: "{{ docker_apps_stacks | difference(['vpn-services']) }}" # group_vars/docker_apps.yml
+        core_stacks_authelia_password: "{{ lookup('ansible.builtin.password', '.lab-secrets/authelia-user chars=ascii_letters,digits length=24') }}"
+      hosts:
+        iac-test:
+    # Role groups, kept with their lab settings. To test a role on CT 990, put `iac-test:` under its
+    # `hosts:`.
+    tailscale_servers:
+      vars:
+        tailscale_join: false # never a second subnet router on the real tailnet
+      hosts: {}
+    samba:
+      vars:
+        samba_share_path: /srv/nas-test # no USB disk in the lab
+        # Never the real password in the lab: a random one, kept in a gitignored file
+        samba_password: "{{ lookup('ansible.builtin.password', '.lab-secrets/samba chars=ascii_letters,digits length=24') }}"
+      hosts: {}
+    adguard:
+      vars:
+        adguard_keepalived: false # never compete for the real DNS VIP .5
+        adguard_sync: false # never push to the RPi3
+        adguard_password: "{{ lookup('ansible.builtin.password', '.lab-secrets/adguard chars=ascii_letters,digits length=24') }}"
+      hosts: {}
+    plex_servers:
+      hosts: {}
+    pbs_servers:
+      vars:
+        pbs_reuse_datastore: false # a new, empty datastore
+        pbs_datastore_path: /srv/pbs-test
+        # Host side off. To test it: pbs_host_side=true pbs_storage_id=lab-pbs (no backup job), then
+        # `pvesm remove lab-pbs` on the host.
+        pbs_host_side: false
+        pbs_vzdump_job: false
+        pbs_root_password: "{{ lookup('ansible.builtin.password', '.lab-secrets/pbs chars=ascii_letters,digits length=24') }}"
+      hosts: {}
+    kasm_servers:
+      vars:
+        kasm_install_flags: [--no-images, --skip-v4l2loopback, --skip-egress, --no-check-disk] # small test disk
+      hosts: {}
+    docker_hw:
+      vars:
+        core_stacks_names: [hawser]
+        dockhand_config_stacks: [agents, frigate, immich]
+        # Random lab values (Frigate's MQTT login is a dummy: no broker in the lab).
+        core_stacks_secrets:
+          hawser/hawser.env: {TOKEN: "{{ lookup('ansible.builtin.password', '.lab-secrets/hawser chars=ascii_letters,digits length=40') }}"}
+          agents/dozzle_cert.pem: *lab_dozzle_cert
+          agents/dozzle_key.pem: *lab_dozzle_key
+          frigate/frigate.env: {FRIGATE_MQTT_USER: lab, FRIGATE_MQTT_PASSWORD: lab-dummy}
+          immich/immich.env: {DB_PASSWORD: &lab_immich_db "{{ lookup('ansible.builtin.password', '.lab-secrets/immich-db chars=ascii_letters,digits length=32') }}"}
+          immich/immich-db.env: {POSTGRES_PASSWORD: *lab_immich_db}
+      # No hardware in the lab: put `iac-test:` here to test the stacks' config and secrets. Frigate's config
+      # points at Home Assistant's real MQTT broker; stop lab Frigate after a test (its dummy login fails there).
+      hosts: {}

@@ -1,0 +1,31 @@
+# docker-apps' Git stacks (folders under stacks/), deployed by Dockhand. Each inventory picks from this list
+# with dockhand_config_stacks (set inline there: these group_vars files would beat an inline override).
+docker_apps_stacks:
+  - excalidraw
+  - vpn-services
+  - monitoring
+  - beszel
+  - dozzle
+  - scrutiny
+  - speedtest-tracker
+  - librespeed
+  - changedetection
+  - ntfy
+  - homepage
+  - calibre-web
+  - metube
+  - tautulli
+  - mealie
+  - freshrss
+  - wallos
+  - vikunja
+  - memos
+  - linkding
+  - convertx
+  - stirling-pdf
+  - searxng
+  - code-server
+  - forgejo
+  - filebrowser
+  - syncthing
+  - rustdesk
