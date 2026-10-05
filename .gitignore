@@ -1,0 +1,14 @@
+.terraform/
+*.tfplan
+*.tfstate.backup
+crash.log
+__pycache__/
+.ansible/
+.DS_Store
+.lab_known_hosts
+.lab-secrets/
+# WireGuard configs (private keys) never go in the repo; keep them in ~/.config/homelab/
+wg*.conf
+/*.conf
+# Site values; homelab.env.example documents them
+homelab.env
