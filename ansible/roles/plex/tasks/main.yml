@@ -1,0 +1,40 @@
+# Plex from Plex's apt repo. A fresh install starts empty and is claimed by hand through an SSH tunnel
+# (docs/runbooks/install.md), so no claim token is needed. Updates: apt by hand (security ones are automatic).
+
+- name: Repo | Plex signing key (PlexSign v2, checked against the pinned SHA-256)
+  ansible.builtin.get_url:
+    url: https://downloads.plex.tv/plex-keys/PlexSign.v2.key
+    dest: /etc/apt/keyrings/plexmediaserver.asc
+    checksum: "sha256:{{ plex_keyring_sha256 }}"
+    mode: "0644"
+
+- name: Repo | Plex
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/plexmediaserver.sources
+    content: |
+      Types: deb
+      URIs: https://repo.plex.tv/deb/
+      Suites: public
+      Components: main
+      Signed-By: /etc/apt/keyrings/plexmediaserver.asc
+    mode: "0644"
+  register: plex_repo
+
+- name: Package
+  ansible.builtin.apt:
+    name: plexmediaserver
+    update_cache: "{{ plex_repo is changed }}"
+
+- name: GPU | plex user in video + render (the device itself comes in as devN mode 0666)
+  ansible.builtin.user:
+    name: plex
+    groups: [video, render]
+    append: true
+  ignore_errors: "{{ ansible_check_mode }}" # the package creates the user
+
+- name: Service
+  ansible.builtin.systemd_service:
+    name: plexmediaserver
+    enabled: true
+    state: started
+  ignore_errors: "{{ ansible_check_mode }}"
