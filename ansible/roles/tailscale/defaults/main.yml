@@ -1,0 +1,8 @@
+# Subnet router for the LAN + exit node.
+tailscale_routes: ["{{ homelab_lan_cidr }}"]
+tailscale_exit_node: true
+# false in the lab: a second router for the same subnet would compete with the real one.
+tailscale_join: true
+# Read from Proton Pass only for the first join (pre-approved, single-use, not ephemeral).
+tailscale_authkey_ref: pass://Homelab/tailscale/password
+tailscale_keyring_sha256: 3e03dacf222698c60b8e2f990b809ca1b3e104de127767864284e6c228f1fb39 # same file for every release

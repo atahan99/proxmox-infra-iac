@@ -1,0 +1,89 @@
+- name: Repo | signing key (checked against the pinned SHA-256)
+  ansible.builtin.get_url:
+    url: "https://pkgs.tailscale.com/stable/debian/{{ ansible_facts['distribution_release'] }}.noarmor.gpg"
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    checksum: "sha256:{{ tailscale_keyring_sha256 }}"
+    mode: "0644"
+
+- name: Repo | Tailscale stable for this release
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/tailscale.sources
+    content: |
+      Types: deb
+      URIs: https://pkgs.tailscale.com/stable/debian
+      Suites: {{ ansible_facts['distribution_release'] }}
+      Components: main
+      Signed-By: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    mode: "0644"
+  register: tailscale_repo
+
+- name: Package
+  ansible.builtin.apt:
+    name: tailscale
+    update_cache: "{{ tailscale_repo is changed }}"
+  ignore_errors: "{{ ansible_check_mode }}" # the repo is only simulated in check mode
+
+- name: Routing | IP forwarding for the subnet router and exit node
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-tailscale.conf
+    content: |
+      net.ipv4.ip_forward = 1
+      net.ipv6.conf.all.forwarding = 1
+    mode: "0644"
+  notify: Apply sysctl
+
+- name: Service
+  ansible.builtin.systemd_service:
+    name: tailscaled
+    enabled: true
+    state: started
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Tailnet | join or align settings
+  when: tailscale_join
+  vars:
+    tailscale_flags: >-
+      --advertise-routes={{ tailscale_routes | join(',') }}
+      --advertise-exit-node={{ tailscale_exit_node | lower }}
+      --hostname={{ inventory_hostname }}
+  block:
+    - name: Tailnet | current state
+      ansible.builtin.command: tailscale debug prefs
+      register: tailscale_prefs_raw
+      changed_when: false
+      check_mode: false
+      failed_when: false
+
+    - name: Tailnet | parse
+      ansible.builtin.set_fact:
+        tailscale_logged_in: "{{ tailscale_prefs_raw.rc == 0 and (tailscale_prefs_raw.stdout | from_json).LoggedOut is false }}"
+        tailscale_routes_now: "{{ ((tailscale_prefs_raw.stdout | from_json).AdvertiseRoutes | default([])) if tailscale_prefs_raw.rc == 0 else [] }}"
+
+    # The key goes through a root-only file, not argv (visible in ps), and only while `tailscale up` runs.
+    - name: Tailnet | first join (auth key read from Proton Pass on the Mac)
+      when: not tailscale_logged_in
+      block:
+        - name: Tailnet | auth key file
+          ansible.builtin.copy:
+            dest: /run/tailscale-authkey
+            content: "{{ lookup('pipe', 'pass-cli item view ' ~ tailscale_authkey_ref) }}"
+            mode: "0600"
+          no_log: true
+
+        - name: Tailnet | join
+          ansible.builtin.command: "tailscale up --auth-key=file:/run/tailscale-authkey {{ tailscale_flags }}"
+          changed_when: true
+      always:
+        - name: Tailnet | auth key file removed
+          ansible.builtin.file:
+            path: /run/tailscale-authkey
+            state: absent
+
+    - name: Tailnet | align routes and exit node
+      ansible.builtin.command: "tailscale set {{ tailscale_flags }}"
+      vars:
+        tailscale_routes_wanted: "{{ tailscale_routes + (['0.0.0.0/0', '::/0'] if tailscale_exit_node else []) }}"
+      when:
+        - tailscale_logged_in
+        - (tailscale_routes_now | sort) != (tailscale_routes_wanted | sort)
+      changed_when: true

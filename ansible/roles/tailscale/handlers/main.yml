@@ -1,0 +1,4 @@
+# Only this file: `sysctl --system` also loads host-level keys an unprivileged LXC may not set.
+- name: Apply sysctl
+  ansible.builtin.command: sysctl -p /etc/sysctl.d/99-tailscale.conf
+  changed_when: true
