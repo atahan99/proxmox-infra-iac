@@ -1,0 +1,11 @@
+# Host uid/gid 1000-1001 appear as 1000-1001 inside; everything else stays shifted.
+lxc_devices_idmap:
+  - "lxc.idmap: u 0 100000 1000"
+  - "lxc.idmap: g 0 100000 1000"
+  - "lxc.idmap: u 1000 1000 2"
+  - "lxc.idmap: g 1000 1000 2"
+  - "lxc.idmap: u 1002 101002 64534"
+  - "lxc.idmap: g 1002 101002 64534"
+
+lxc_devices_idmapped: "{{ lxc_devices_containers | dict2items | selectattr('value.idmap', 'defined') | selectattr('value.idmap') | list }}"
+lxc_devices_existing: "{{ lxc_devices_conf.results | selectattr('stat.exists') | map(attribute='item') | list }}"

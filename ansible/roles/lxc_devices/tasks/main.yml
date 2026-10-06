@@ -1,0 +1,47 @@
+# Runs on the Proxmox host as root. OpenTofu creates the containers; this adds what
+# the API token may not set. Containers whose config changed are restarted.
+
+- name: Idmap | allow root to map host uid/gid 1000-1001 into containers
+  ansible.builtin.lineinfile:
+    path: "/etc/{{ item }}"
+    line: root:1000:2
+  loop: [subuid, subgid]
+  when: lxc_devices_idmapped | length > 0
+
+- name: Config | which containers exist
+  ansible.builtin.stat:
+    path: "/etc/pve/lxc/{{ item }}.conf"
+  loop: "{{ lxc_devices_containers.keys() | map('string') | list }}"
+  register: lxc_devices_conf
+
+- name: Config | root-only lines
+  ansible.builtin.lineinfile: &conf_line
+    path: "/etc/pve/lxc/{{ item.0.key }}.conf"
+    line: "{{ item.1 }}"
+    # key: value lines replace their key; raw lxc.* lines only match themselves
+    regexp: "{{ '^' ~ (item.1 | regex_escape) ~ '$' if item.1 is match('lxc\\.') else '^' ~ item.1.split(':')[0] ~ ':' }}"
+    insertbefore: '^\[' # stay out of snapshot sections
+    unsafe_writes: true # pmxcfs
+  loop: "{{ lxc_devices_containers | dict2items | subelements('value.lines', skip_missing=true) }}"
+  loop_control:
+    label: "{{ item.0.key }}: {{ item.1 }}"
+  when: item.0.key | string in lxc_devices_existing
+  register: lxc_devices_lines_result
+
+- name: Config | uid/gid 1000-1001 passthrough
+  ansible.builtin.lineinfile: *conf_line
+  loop: "{{ lxc_devices_idmapped | product(lxc_devices_idmap) | list }}"
+  loop_control:
+    label: "{{ item.0.key }}: {{ item.1 }}"
+  when: item.0.key | string in lxc_devices_existing
+  register: lxc_devices_idmap_result
+
+- name: Config | restart running containers whose config changed
+  ansible.builtin.shell: >-
+    if [ "$(pct status {{ item }})" = "status: running" ]; then pct reboot {{ item }} && echo rebooted; fi
+  loop: >-
+    {{ [lxc_devices_lines_result, lxc_devices_idmap_result] | map(attribute='results') | flatten(levels=1)
+       | selectattr('changed') | map(attribute='item') | map('first')
+       | map(attribute='key') | map('string') | unique }}
+  register: lxc_devices_reboot
+  changed_when: "'rebooted' in lxc_devices_reboot.stdout"

@@ -1,0 +1,5 @@
+# Runs after `tofu apply`: what only root@pam may set on the containers.
+- name: Root-only container config
+  hosts: pve_hosts
+  roles:
+    - lxc_devices

@@ -1,0 +1,5 @@
+# Per container: lines for /etc/pve/lxc/<vmid>.conf that only root@pam may set.
+# `key: value` lines (mp0, dev0, features) replace the existing key; raw `lxc.*`
+# lines are matched exactly (keys repeat). `idmap: true` passes host uid/gid
+# 1000-1001 through (files on /mnt/external are owned by 1000/1001).
+lxc_devices_containers: {}
