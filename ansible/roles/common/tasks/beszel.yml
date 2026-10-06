@@ -1,0 +1,53 @@
+- name: Beszel | system user
+  ansible.builtin.user:
+    name: beszel
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Beszel | release archive (checked against the pinned SHA-256)
+  ansible.builtin.get_url:
+    url: "https://github.com/henrygd/beszel/releases/download/v{{ common_beszel_version }}/beszel-agent_linux_amd64.tar.gz"
+    dest: "/var/cache/beszel-agent-{{ common_beszel_version }}.tar.gz"
+    checksum: "sha256:{{ common_beszel_sha256 }}"
+    mode: "0644"
+
+- name: Beszel | binary
+  ansible.builtin.unarchive:
+    src: "/var/cache/beszel-agent-{{ common_beszel_version }}.tar.gz"
+    dest: /usr/local/bin
+    include: [beszel-agent]
+    remote_src: true
+  ignore_errors: "{{ ansible_check_mode }}" # the download is only simulated in check mode
+  notify: Restart beszel-agent
+
+- name: Beszel | service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/beszel-agent.service
+    content: |
+      # Managed by Ansible (common)
+      [Unit]
+      Description=Beszel agent
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      User=beszel
+      Environment="KEY={{ common_beszel_hub_key }}"
+      Environment="LISTEN={{ common_beszel_port }}"
+      ExecStart=/usr/local/bin/beszel-agent
+      Restart=on-failure
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+    mode: "0644"
+  notify: Restart beszel-agent
+
+- name: Beszel | running
+  ansible.builtin.systemd_service:
+    name: beszel-agent
+    enabled: true
+    state: started
+    daemon_reload: true
+  ignore_errors: "{{ ansible_check_mode }}" # the unit is only simulated in check mode

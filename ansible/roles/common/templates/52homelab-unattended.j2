@@ -1,0 +1,15 @@
+// Managed by Ansible (common). No automatic reboots; third-party repos are never auto-updated.
+{% if common_updates == 'security' %}
+// Security only: the Debian default also takes stable point releases.
+#clear Unattended-Upgrade::Origins-Pattern;
+Unattended-Upgrade::Origins-Pattern {
+  "origin=Debian,codename=${distro_codename},label=Debian-Security";
+  "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
+};
+{% elif ansible_facts['distribution'] == 'Ubuntu' %}
+// Ubuntu's default has -security only; add -updates (the equivalent of Debian point releases).
+Unattended-Upgrade::Allowed-Origins {
+  "${distro_id}:${distro_codename}-updates";
+};
+{% endif %}
+Unattended-Upgrade::Automatic-Reboot "false";

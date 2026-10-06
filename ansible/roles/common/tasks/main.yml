@@ -1,0 +1,29 @@
+# Every LXC: SSH key, timezone, unattended upgrades, key-only SSH, Beszel agent.
+
+- name: SSH | operator keys for root
+  ansible.builtin.lineinfile:
+    path: /root/.ssh/authorized_keys
+    line: "{{ item }}"
+    create: true
+    mode: "0600"
+  loop: "{{ ssh_authorized_keys }}"
+
+- name: Time | timezone
+  ansible.builtin.file:
+    src: "/usr/share/zoneinfo/{{ timezone }}"
+    dest: /etc/localtime
+    state: link
+    force: true
+
+- name: Time | timezone name
+  ansible.builtin.copy:
+    dest: /etc/timezone
+    content: "{{ timezone }}\n"
+    mode: "0644"
+
+- name: Baseline | unattended upgrades, key-only SSH (shared with the Proxmox host)
+  ansible.builtin.import_tasks: baseline.yml
+
+- name: Beszel agent
+  ansible.builtin.import_tasks: beszel.yml
+  when: common_beszel

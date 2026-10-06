@@ -1,0 +1,33 @@
+# What every LXC shares with the Proxmox host (pve_host includes this file).
+- name: Updates | unattended-upgrades
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Updates | enabled, daily
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    mode: "0644"
+
+- name: Updates | origins (Debian default = stable + security; Ubuntu adds -updates; pbs = security only)
+  ansible.builtin.template:
+    src: 52homelab-unattended.j2
+    dest: /etc/apt/apt.conf.d/52homelab-unattended
+    mode: "0644"
+
+# The drop-in comes before sshd_config's own settings (first match wins), and before a 50-cloud-init.conf.
+- name: SSH | key-only (no passwords, root by key only)
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/10-homelab.conf
+    content: |
+      # Managed by Ansible (common)
+      PermitRootLogin prohibit-password
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+    mode: "0644"
+  notify: Reload ssh

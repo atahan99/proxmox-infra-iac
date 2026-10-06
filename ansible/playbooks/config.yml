@@ -1,0 +1,42 @@
+- name: Every LXC
+  hosts: lxcs
+  roles:
+    - common
+
+- name: Tailscale subnet router + exit node
+  hosts: tailscale_servers
+  roles:
+    - tailscale
+
+- name: Samba share for the Windows PC
+  hosts: samba
+  roles:
+    - samba
+
+- name: AdGuard Home + keepalived + sync
+  hosts: adguard
+  roles:
+    - adguard
+
+- name: Plex
+  hosts: plex_servers
+  roles:
+    - plex
+
+- name: Proxmox Backup Server
+  hosts: pbs_servers
+  roles:
+    - pbs
+
+- name: Kasm Workspaces
+  hosts: kasm_servers
+  roles:
+    - role: docker_engine
+      vars:
+        docker_engine_no_new_privileges: false # workspace images may use sudo
+    - kasm
+
+- name: ClamAV (scheduled, read-only scans of the USB disk)
+  hosts: clamav_servers
+  roles:
+    - clamav
