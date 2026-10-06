@@ -1,0 +1,20 @@
+# In check mode the units are only simulated, so restarting them can't succeed.
+- name: Restart AdGuardHome
+  ansible.builtin.systemd_service:
+    name: AdGuardHome
+    state: restarted
+    daemon_reload: true
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Reload keepalived
+  ansible.builtin.systemd_service:
+    name: keepalived
+    state: reloaded
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Restart adguardhome-sync
+  ansible.builtin.systemd_service:
+    name: adguardhome-sync
+    state: restarted
+    daemon_reload: true
+  ignore_errors: "{{ ansible_check_mode }}"

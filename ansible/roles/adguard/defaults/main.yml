@@ -1,0 +1,28 @@
+adguard_version: v0.107.79
+adguard_sha256: c48f4a43000665484c5ec28177de11a004759b620dae8f77b2aabefc9ef3687f
+adguard_sync_version: "0.9.0"
+adguard_sync_sha256: 45b70be55e4fb32c9c29745d32bc7545abb3594b554664c9dbdaa5299be00da7
+
+# One wildcard for every app, pointing at Traefik on docker-apps.
+adguard_rewrites:
+  - {domain: "*.{{ homelab_domain }}", answer: "{{ homelab_stack_env.DOCKER_APPS_IP }}"}
+
+# keepalived: this node is MASTER for the DNS VIP; the RPi3 (outside this repo) is BACKUP.
+adguard_keepalived: true
+adguard_vip: "{{ homelab_dns_vip }}/{{ homelab_lan_cidr.split('/')[1] }}"
+adguard_vrid: 51
+adguard_priority: 150
+
+# adguardhome-sync pushes this node's settings to the RPi3 replica.
+adguard_sync: true
+adguard_replica_url: "http://{{ homelab_rpi3_ip }}"
+
+# Proton Pass item `adguard`, read on the Mac at run time. The keepalived password and the
+# replica login must match the RPi3 (not managed here).
+adguard_username: admin # the UI login and sync's origin login (not a secret)
+adguard_password: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/adguard/password') }}"
+# Fixed per-host salt, so the hash (and the config file) stay the same between runs.
+adguard_password_hash: "{{ adguard_password | password_hash('bcrypt', salt=(inventory_hostname | hash('sha256'))[:21] ~ 'e') }}"
+adguard_keepalived_pass: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/adguard/keepalived_auth_pass') }}"
+adguard_replica_username: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/adguard/replica_username') }}"
+adguard_replica_password: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/adguard/replica_password') }}"

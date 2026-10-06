@@ -1,0 +1,155 @@
+- name: Packages | dig for the health check
+  ansible.builtin.apt:
+    name: bind9-dnsutils
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: AdGuard Home | release (checked against the pinned SHA-256)
+  ansible.builtin.get_url:
+    url: "https://github.com/AdguardTeam/AdGuardHome/releases/download/{{ adguard_version }}/AdGuardHome_linux_amd64.tar.gz"
+    dest: "/var/cache/AdGuardHome-{{ adguard_version }}.tar.gz"
+    checksum: "sha256:{{ adguard_sha256 }}"
+    mode: "0644"
+
+- name: AdGuard Home | folder
+  ansible.builtin.file:
+    path: /opt/AdGuardHome
+    state: directory
+    mode: "0755"
+
+- name: AdGuard Home | binary
+  ansible.builtin.unarchive:
+    src: "/var/cache/AdGuardHome-{{ adguard_version }}.tar.gz"
+    dest: /opt
+    include: [./AdGuardHome/AdGuardHome]
+    remote_src: true
+  ignore_errors: "{{ ansible_check_mode }}" # the download is only simulated in check mode
+  notify: Restart AdGuardHome
+
+- name: AdGuard Home | config (contains the admin password hash, so no diff output)
+  ansible.builtin.template:
+    src: AdGuardHome.yaml.j2
+    dest: /opt/AdGuardHome/AdGuardHome.yaml
+    mode: "0600"
+  diff: false
+  notify: Restart AdGuardHome
+
+- name: AdGuard Home | service unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/AdGuardHome.service
+    content: |
+      # Managed by Ansible (adguard)
+      [Unit]
+      Description=AdGuard Home: Network-level blocker
+      ConditionFileIsExecutable=/opt/AdGuardHome/AdGuardHome
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      ExecStart=/opt/AdGuardHome/AdGuardHome -s run
+      WorkingDirectory=/opt/AdGuardHome
+      Restart=always
+      RestartSec=10
+
+      [Install]
+      WantedBy=multi-user.target
+    mode: "0644"
+  notify: Restart AdGuardHome
+
+- name: AdGuard Home | running
+  ansible.builtin.systemd_service:
+    name: AdGuardHome
+    enabled: true
+    state: started
+    daemon_reload: true
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Keepalived | DNS VIP
+  when: adguard_keepalived
+  block:
+    - name: Keepalived | package
+      ansible.builtin.apt:
+        name: keepalived
+
+    - name: Keepalived | health check
+      ansible.builtin.copy:
+        src: check-adguard.sh
+        dest: /usr/local/bin/check-adguard.sh
+        mode: "0755"
+
+    - name: Keepalived | config (holds the VRRP password, so no diff output)
+      ansible.builtin.template:
+        src: keepalived.conf.j2
+        dest: /etc/keepalived/keepalived.conf
+        mode: "0600"
+      diff: false
+      notify: Reload keepalived
+
+    - name: Keepalived | running
+      ansible.builtin.systemd_service:
+        name: keepalived
+        enabled: true
+        state: started
+      ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Sync | push settings to the RPi3 replica
+  when: adguard_sync
+  block:
+    - name: Sync | release (checked against the pinned SHA-256)
+      ansible.builtin.get_url:
+        url: "https://github.com/bakito/adguardhome-sync/releases/download/v{{ adguard_sync_version }}/adguardhome-sync_{{ adguard_sync_version }}_linux_amd64.tar.gz"
+        dest: "/var/cache/adguardhome-sync-{{ adguard_sync_version }}.tar.gz"
+        checksum: "sha256:{{ adguard_sync_sha256 }}"
+        mode: "0644"
+
+    - name: Sync | binary
+      ansible.builtin.unarchive:
+        src: "/var/cache/adguardhome-sync-{{ adguard_sync_version }}.tar.gz"
+        dest: /usr/local/bin
+        include: [adguardhome-sync]
+        remote_src: true
+      ignore_errors: "{{ ansible_check_mode }}"
+      notify: Restart adguardhome-sync
+
+    - name: Sync | config folder
+      ansible.builtin.file:
+        path: /opt/adguardhome-sync
+        state: directory
+        mode: "0700"
+
+    - name: Sync | config (holds both AdGuard logins, so no diff output)
+      ansible.builtin.template:
+        src: adguardhome-sync.yaml.j2
+        dest: /opt/adguardhome-sync/adguardhome-sync.yaml
+        mode: "0600"
+      diff: false
+      notify: Restart adguardhome-sync
+
+    - name: Sync | service unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/adguardhome-sync.service
+        content: |
+          # Managed by Ansible (adguard)
+          [Unit]
+          Description=AdGuardHome Sync
+          After=network-online.target AdGuardHome.service
+          Wants=network-online.target
+
+          [Service]
+          ExecStart=/usr/local/bin/adguardhome-sync run --config /opt/adguardhome-sync/adguardhome-sync.yaml
+          WorkingDirectory=/opt/adguardhome-sync
+          Restart=always
+          RestartSec=10
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: "0644"
+      notify: Restart adguardhome-sync
+
+    - name: Sync | running
+      ansible.builtin.systemd_service:
+        name: adguardhome-sync
+        enabled: true
+        state: started
+        daemon_reload: true
+      ignore_errors: "{{ ansible_check_mode }}"

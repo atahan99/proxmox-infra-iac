@@ -1,0 +1,33 @@
+# Managed by Ansible (adguard)
+origin:
+  # Local: this password never crosses the network. The replica (RPi3, not managed here) is plain HTTP.
+  url: http://127.0.0.1
+  username: {{ adguard_username }}
+  password: {{ adguard_password }}
+
+replicas:
+  - url: {{ adguard_replica_url }}
+    username: {{ adguard_replica_username }}
+    password: {{ adguard_replica_password }}
+
+cron: "*/5 * * * *"
+runOnStart: true
+
+# No status web UI: it had no authentication (port 0 disables it; the sync itself keeps running).
+api:
+  port: 0
+
+features:
+  generalSettings: true
+  queryLogConfig: true
+  statsConfig: true
+  clientSettings: true
+  services: true
+  filters: true
+  dhcp:
+    serverConfig: false
+    staticLeases: false
+  dns:
+    serverConfig: true
+    rewrites: true
+    accessLists: true

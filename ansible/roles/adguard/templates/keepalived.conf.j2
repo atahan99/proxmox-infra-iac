@@ -1,0 +1,30 @@
+# Managed by Ansible (adguard)
+vrrp_script chk_adguard {
+    script "/usr/local/bin/check-adguard.sh"
+    interval 5
+    timeout 2
+    fall 2
+    rise 2
+    weight -60
+}
+
+vrrp_instance VI_1 {
+    state MASTER
+    interface eth0
+    virtual_router_id {{ adguard_vrid }}
+    priority {{ adguard_priority }}
+    advert_int 1
+
+    authentication {
+        auth_type PASS
+        auth_pass {{ adguard_keepalived_pass }}
+    }
+
+    virtual_ipaddress {
+        {{ adguard_vip }}
+    }
+
+    track_script {
+        chk_adguard
+    }
+}
