@@ -1,0 +1,7 @@
+#!/bin/sh
+# Managed by Ansible (pve_host). LXC volumes on LVM-thin are never trimmed by the
+# host's fstrim.timer; give the freed blocks back to the thin pool weekly.
+set -u
+for id in $(pct list | awk 'NR > 1 && $2 == "running" { print $1 }'); do
+  echo "CT $id: $(pct fstrim "$id" 2>&1 | tail -n 1)"
+done

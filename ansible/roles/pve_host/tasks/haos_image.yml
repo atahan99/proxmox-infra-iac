@@ -1,0 +1,43 @@
+# HAOS ships only as .qcow2.xz, which OpenTofu's download_file can't unpack, so:
+# Ansible downloads + verifies + unpacks into local:import/, OpenTofu imports it as VM 102's disk.
+
+- name: Images | read the content types of storage `local`
+  ansible.builtin.command: pvesh get /storage/local --output-format json
+  register: pve_host_local_storage
+  changed_when: false
+  check_mode: false
+
+- name: Images | allow disk images to be imported from `local`
+  ansible.builtin.command: >-
+    pvesm set local --content {{ pve_host_local_content | union(['import']) | join(',') }}
+  vars:
+    pve_host_local_content: "{{ (pve_host_local_storage.stdout | from_json).content.split(',') }}"
+  when: "'import' not in pve_host_local_content"
+  changed_when: true
+
+- name: Images | is the HAOS image already unpacked
+  ansible.builtin.stat:
+    path: "/var/lib/vz/import/haos_ova-{{ pve_host_haos_version }}.qcow2"
+  register: pve_host_haos_qcow2
+
+- name: Images | download, verify and unpack HAOS
+  when: not pve_host_haos_qcow2.stat.exists
+  block:
+    - name: Images | import folder of storage `local`
+      ansible.builtin.file:
+        path: /var/lib/vz/import
+        state: directory
+        mode: "0755"
+
+    - name: Images | download HAOS (checked against the pinned SHA-256)
+      ansible.builtin.get_url:
+        url: "https://github.com/home-assistant/operating-system/releases/download/{{ pve_host_haos_version }}/haos_ova-{{ pve_host_haos_version }}.qcow2.xz"
+        dest: "/var/lib/vz/import/haos_ova-{{ pve_host_haos_version }}.qcow2.xz"
+        checksum: "sha256:{{ pve_host_haos_sha256 }}"
+        mode: "0644"
+      ignore_errors: "{{ ansible_check_mode }}" # nothing is downloaded in check mode
+
+    - name: Images | unpack HAOS
+      ansible.builtin.command: unxz /var/lib/vz/import/haos_ova-{{ pve_host_haos_version }}.qcow2.xz
+      args:
+        creates: "/var/lib/vz/import/haos_ova-{{ pve_host_haos_version }}.qcow2"

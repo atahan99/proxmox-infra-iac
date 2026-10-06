@@ -1,0 +1,4 @@
+- name: Proxmox host baseline
+  hosts: pve_hosts
+  roles:
+    - pve_host

@@ -1,0 +1,162 @@
+# The host's part of the monitoring stack (stacks/monitoring, stacks/scrutiny on docker-apps).
+
+# --- Read-only API user for the Prometheus exporter and Homepage. Same pattern as tofu_user.yml.
+- name: Monitoring | API tokens of the read-only user
+  ansible.builtin.command: pveum user token list {{ pve_host_monitoring_user }} --output-format json
+  register: pve_host_monitoring_read
+  changed_when: false
+  failed_when: false # fails while the user doesn't exist yet
+  check_mode: false
+
+- name: Monitoring | existing token names
+  ansible.builtin.set_fact:
+    pve_host_monitoring_existing: "{{ (pve_host_monitoring_read.stdout or '[]') | from_json | map(attribute='tokenid') | list }}"
+
+# pve_host_users and pve_host_acls come from tofu_user.yml, imported before this file.
+- name: Monitoring | read-only user
+  ansible.builtin.command: pveum user add {{ pve_host_monitoring_user }} --comment "Prometheus exporter, Homepage (read-only)"
+  when: pve_host_monitoring_user not in pve_host_users
+  changed_when: true
+
+- name: Monitoring | PVEAuditor on / for the user and its tokens
+  ansible.builtin.command: pveum acl modify / --{{ 'tokens' if '!' in item else 'users' }} '{{ item }}' --roles PVEAuditor
+  loop: "{{ [pve_host_monitoring_user] + (pve_host_monitoring_tokens | map('regex_replace', '^', pve_host_monitoring_user ~ '!') | list) }}"
+  when:
+    - item ~ ':PVEAuditor' not in pve_host_acls
+    - "'!' not in item or item.split('!')[1] in pve_host_monitoring_existing"
+  changed_when: true
+
+- name: Monitoring | tokens still to create by hand
+  ansible.builtin.debug:
+    msg: >-
+      Missing token(s) {{ pve_host_monitoring_missing | join(', ') }}: run
+      `pveum user token add {{ pve_host_monitoring_user }} <name> --privsep 1 --expire $(date -d '+1 year' +%s)`,
+      store the secret in Proton Pass Homelab/proxmox-<name> (field password), re-run this role.
+  when: pve_host_monitoring_missing | length > 0
+  vars:
+    pve_host_monitoring_missing: "{{ pve_host_monitoring_tokens | difference(pve_host_monitoring_existing) }}"
+
+# --- Scrutiny collector: the disks are here; it posts their SMART data to the web app once a day.
+- name: Scrutiny | collector binary (checked against the pinned SHA-256)
+  ansible.builtin.get_url:
+    url: "https://github.com/AnalogJ/scrutiny/releases/download/v{{ pve_host_scrutiny_version }}/scrutiny-collector-metrics-linux-amd64"
+    dest: /usr/local/bin/scrutiny-collector-metrics
+    checksum: "sha256:{{ pve_host_scrutiny_sha256 }}"
+    mode: "0755"
+
+- name: Scrutiny | daily collector run
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/homelab-scrutiny-collector.{{ item.ext }}"
+    content: "{{ item.content }}"
+    mode: "0644"
+  loop:
+    - ext: service
+      content: |
+        # Managed by Ansible (pve_host)
+        [Unit]
+        Description=Send the disks' SMART data to Scrutiny
+        After=network-online.target
+        Wants=network-online.target
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/bin/scrutiny-collector-metrics run --host-id pve --api-endpoint https://scrutiny.{{ pve_host_domain }}
+    - ext: timer
+      content: |
+        # Managed by Ansible (pve_host)
+        [Unit]
+        Description=Send the disks' SMART data to Scrutiny (daily)
+
+        [Timer]
+        OnCalendar=*-*-* 03:30
+        RandomizedDelaySec=15m
+        Persistent=true
+
+        [Install]
+        WantedBy=timers.target
+  loop_control:
+    label: "{{ item.ext }}"
+
+- name: Scrutiny | timer enabled
+  ansible.builtin.systemd_service:
+    name: homelab-scrutiny-collector.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  ignore_errors: "{{ ansible_check_mode }}" # the unit is only simulated in check mode
+
+# --- Grafana Alloy: the host's journal to Loki on docker-apps (through Traefik; Loki accepts pushes only
+# from this host and docker-hw).
+- name: Alloy | Grafana apt key (checked against the pinned SHA-256)
+  ansible.builtin.get_url:
+    url: https://apt.grafana.com/gpg.key
+    dest: /usr/share/keyrings/grafana.asc
+    checksum: "sha256:{{ pve_host_grafana_keyring_sha256 }}"
+    mode: "0644"
+
+- name: Alloy | Grafana apt source
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/grafana.sources
+    content: |
+      # Managed by Ansible (pve_host)
+      Types: deb
+      URIs: https://apt.grafana.com
+      Suites: stable
+      Components: main
+      Signed-By: /usr/share/keyrings/grafana.asc
+    mode: "0644"
+  register: pve_host_grafana_source
+
+- name: Alloy | package
+  ansible.builtin.apt:
+    name: alloy
+    update_cache: "{{ pve_host_grafana_source is changed }}"
+  ignore_errors: "{{ ansible_check_mode }}" # the new source isn't there in check mode
+
+- name: Alloy | may read the journal
+  ansible.builtin.user:
+    name: alloy
+    groups: [systemd-journal]
+    append: true
+  ignore_errors: "{{ ansible_check_mode }}" # the user comes with the package
+  notify: Restart alloy
+
+- name: Alloy | config
+  ansible.builtin.copy:
+    dest: /etc/alloy/config.alloy
+    content: |
+      // Managed by Ansible (pve_host). The host's journal to Loki on docker-apps.
+      loki.relabel "journal" {
+        forward_to = []
+
+        rule {
+          source_labels = ["__journal__systemd_unit"]
+          target_label  = "unit"
+        }
+
+        rule {
+          source_labels = ["__journal_priority_keyword"]
+          target_label  = "level"
+        }
+      }
+
+      loki.source.journal "journal" {
+        relabel_rules = loki.relabel.journal.rules
+        labels        = {host = "pve", source = "journal"}
+        forward_to    = [loki.write.docker_apps.receiver]
+      }
+
+      loki.write "docker_apps" {
+        endpoint {
+          url = "https://loki.{{ pve_host_domain }}/loki/api/v1/push"
+        }
+      }
+    mode: "0644"
+  notify: Restart alloy
+
+- name: Alloy | running
+  ansible.builtin.systemd_service:
+    name: alloy
+    enabled: true
+    state: started
+  ignore_errors: "{{ ansible_check_mode }}"

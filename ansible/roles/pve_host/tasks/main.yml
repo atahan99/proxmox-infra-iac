@@ -1,0 +1,128 @@
+# What and why: docs/host-baseline.md.
+
+- name: Network | static vmbr0, bridge port without DHCP
+  ansible.builtin.template:
+    src: interfaces.j2
+    dest: /etc/network/interfaces
+    mode: "0644"
+    backup: true
+  notify: Reload network
+
+- name: Hardware | boot, modules, USB disk, webcam
+  ansible.builtin.import_tasks: hardware.yml
+
+- name: Apt | deb822 sources (Debian incl. non-free-firmware, PVE no-subscription, enterprise off)
+  ansible.builtin.copy:
+    src: "apt/{{ item }}"
+    dest: "/etc/apt/sources.list.d/{{ item }}"
+    mode: "0644"
+  loop: [debian.sources, proxmox.sources, pve-enterprise.sources]
+  notify: Update apt cache
+
+- name: Cleanup | legacy apt files and hand-made jobs
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ pve_host_legacy_files }}"
+  notify: Update apt cache
+
+- name: Apt | refresh the cache before installing from the new sources
+  ansible.builtin.meta: flush_handlers
+
+- name: Packages | microcode (needs one reboot)
+  ansible.builtin.apt:
+    name: intel-microcode
+    state: present
+  ignore_errors: "{{ ansible_check_mode }}" # non-free-firmware is only simulated in check mode
+
+# Debian and Proxmox packages are upgraded together by hand (`apt full-upgrade`), never automatically.
+- name: Baseline | Debian security updates only (never auto-reboots), key-only SSH; same as every LXC
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: baseline
+  vars:
+    common_updates: security
+
+- name: UI | apt hook that keeps the subscription pop-up removed
+  ansible.builtin.copy:
+    src: apt/86pve-no-nag
+    dest: /etc/apt/apt.conf.d/86pve-no-nag
+    mode: "0644"
+
+- name: UI | remove the subscription pop-up now
+  ansible.builtin.shell: |
+    f=/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js
+    grep -q NoMoreNagging $f && exit 0
+    sed -i '/data\.status/{s/\!//;s/active/NoMoreNagging/}' $f && echo patched
+  register: pve_host_nag
+  changed_when: "'patched' in pve_host_nag.stdout"
+
+- name: Single node | HA services and corosync stay off
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: false
+    state: stopped
+  loop: [pve-ha-lrm, pve-ha-crm, corosync]
+
+- name: Sysctl | swap only under real memory pressure
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-homelab.conf
+    content: "vm.swappiness = 10\n"
+    mode: "0644"
+  notify: Apply sysctl
+
+- name: SSH | operator keys for root
+  ansible.builtin.lineinfile:
+    path: /etc/pve/priv/authorized_keys # /root/.ssh/authorized_keys links here
+    line: "{{ item }}"
+    unsafe_writes: true # pmxcfs
+  loop: "{{ ssh_authorized_keys }}"
+
+- name: Backups | host-config folders on the USB disk
+  ansible.builtin.file:
+    path: "/mnt/external/Proxmox/{{ item }}"
+    state: directory
+    mode: "0700"
+  loop: [host-config, pbs-config]
+
+- name: Maintenance | scripts
+  ansible.builtin.copy:
+    src: "maintenance/{{ item.name }}"
+    dest: "/usr/local/sbin/{{ item.name }}"
+    mode: "0755"
+  loop: "{{ pve_host_weekly_jobs }}"
+
+- name: Maintenance | systemd units
+  ansible.builtin.template:
+    src: "weekly.{{ item.1 }}.j2"
+    dest: "/etc/systemd/system/{{ item.0.name }}.{{ item.1 }}"
+    mode: "0644"
+  loop: "{{ pve_host_weekly_jobs | product(['service', 'timer']) | list }}"
+  vars:
+    job: "{{ item.0 }}"
+
+- name: Maintenance | timers enabled
+  ansible.builtin.systemd_service:
+    name: "{{ item.name }}.timer"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop: "{{ pve_host_weekly_jobs }}"
+  ignore_errors: "{{ ansible_check_mode }}" # units are only simulated in check mode
+
+# Here, not in OpenTofu: downloading templates needs Sys.Modify on /, which the apply token
+# must not have. pveam checks the SHA-512 from Proxmox's signed template index.
+- name: Templates | LXC templates for OpenTofu
+  ansible.builtin.shell: pveam update >/dev/null && pveam download local {{ item }}
+  args:
+    creates: "/var/lib/vz/template/cache/{{ item }}"
+  loop: "{{ pve_host_lxc_templates }}"
+
+- name: Images | HAOS disk image for OpenTofu's import_from
+  ansible.builtin.import_tasks: haos_image.yml
+
+- name: OpenTofu | API user and roles (tokens are made by hand, their secrets go to Proton Pass)
+  ansible.builtin.import_tasks: tofu_user.yml
+
+- name: Monitoring | read-only API user, Scrutiny collector, Alloy (journal to Loki)
+  ansible.builtin.import_tasks: monitoring.yml

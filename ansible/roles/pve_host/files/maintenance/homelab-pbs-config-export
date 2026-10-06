@@ -1,0 +1,25 @@
+#!/bin/sh
+# Managed by Ansible (pve_host). Weekly export of the PBS (CT 108) config off the USB datastore onto the NVMe.
+# 108 is excluded from vzdump, so this is the only copy of its jobs/users/keys.
+set -e
+
+CTID=108
+DEST=/var/lib/vz/pbs-config
+KEEP_DAYS=90
+
+install -d -m 700 "$DEST"
+OUT="$DEST/pbs-config-$(date +%F).tar.gz"
+
+# Stream straight out of the container: no temp file inside 108, and the filename
+# uses the host clock (108's clock can drift).
+pct exec "$CTID" -- tar czf - -C / etc/proxmox-backup > "$OUT.part"
+
+# An empty or truncated config export is worse than none: it looks like a backup.
+tar tzf "$OUT.part" >/dev/null
+[ "$(tar tzf "$OUT.part" | grep -c 'datastore\.cfg$')" -eq 1 ]
+
+mv "$OUT.part" "$OUT"
+chmod 600 "$OUT"
+
+find "$DEST" -name 'pbs-config-*.tar.gz' -mtime +$KEEP_DAYS -delete
+logger -t pbs-config-export "exported $OUT ($(stat -c%s "$OUT") bytes)"

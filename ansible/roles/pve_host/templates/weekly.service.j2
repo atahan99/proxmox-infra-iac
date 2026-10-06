@@ -1,0 +1,7 @@
+# Managed by Ansible (pve_host)
+[Unit]
+Description={{ job.description }}
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/{{ job.name }}

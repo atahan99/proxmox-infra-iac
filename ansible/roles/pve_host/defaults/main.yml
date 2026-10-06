@@ -1,0 +1,39 @@
+# OpenTofu's API user. Tokens are created by hand (their secrets go to Proton Pass):
+#   pveum user token add tofu@pve plan|apply --privsep 1 --expire <+1y>
+pve_host_tofu_user: tofu@pve
+pve_host_tofu_apply_privs: >-
+  Datastore.AllocateSpace Datastore.Audit SDN.Use Sys.Audit
+  VM.Allocate VM.Audit VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit VM.Config.Disk
+  VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options VM.GuestAgent.Audit VM.PowerMgmt
+
+pve_host_legacy_files:
+  - /etc/apt/sources.list
+  - /etc/apt/sources.list.d/ceph.sources
+
+pve_host_weekly_jobs:
+  - name: homelab-pbs-config-export
+    description: Export the PBS (CT 108) config to the NVMe
+    when: Sun 06:15 # after the 05:00 backup slot, before PBS prune at 07:15
+  - name: homelab-host-backup
+    description: Back up /etc and the pmxcfs database to the USB disk
+    when: Sun 07:00 # after the PBS export, so it copies the fresh one
+  - name: homelab-lxc-fstrim
+    description: Trim all running LXC volumes
+    when: Sun 04:00
+
+# Monitoring (tasks/monitoring.yml). Tokens are made by hand: proxmox-<name> in Proton Pass.
+pve_host_domain: "{{ homelab_domain }}" # where Scrutiny and Loki live (Traefik on docker-apps)
+pve_host_monitoring_user: monitoring@pve
+pve_host_monitoring_tokens: [exporter, homepage]
+pve_host_scrutiny_version: "0.9.5"
+pve_host_scrutiny_sha256: a7745fe3d4282857be07089298a4fa29b1f34e50fc7cc1c054b2945dd9edc320
+pve_host_grafana_keyring_sha256: 3d4029689bc7e4444ec00abafa07f21e9c812b41f1123ab5bbe6f8c3e3f7ff8c
+
+# Must match `template` in the tfvars files.
+pve_host_lxc_templates:
+  - debian-13-standard_13.6-1_amd64.tar.zst
+  - ubuntu-26.04-standard_26.04-1_amd64.tar.zst
+
+# Must match `image` in prod.tfvars. Digest from the GitHub release asset.
+pve_host_haos_version: "18.3"
+pve_host_haos_sha256: fae6a728768cc10aff60d4820bfcd40d64cd77fab82c8bd92af13b3d9d414090

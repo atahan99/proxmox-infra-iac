@@ -1,0 +1,16 @@
+# Managed by Ansible (pve_host). Static, as the Proxmox installer writes it.
+auto lo
+iface lo inet loopback
+
+iface {{ pve_nic }} inet manual
+
+auto vmbr0
+iface vmbr0 inet static
+	address {{ pve_address }}/{{ pve_prefix }}
+	gateway {{ pve_gateway }}
+	hwaddress {{ pve_mac }}
+	bridge-ports {{ pve_nic }}
+	bridge-stp off
+	bridge-fd 0
+
+source /etc/network/interfaces.d/*

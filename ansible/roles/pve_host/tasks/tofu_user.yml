@@ -1,0 +1,50 @@
+# pveum has no idempotent mode, so read first (also in check mode), then change only what differs.
+- name: OpenTofu | read users, roles, ACLs and tokens
+  ansible.builtin.command: "pveum {{ item }} --output-format json"
+  loop:
+    - user list
+    - role list
+    - acl list
+    - "user token list {{ pve_host_tofu_user }}"
+  register: pve_host_read
+  changed_when: false
+  failed_when: false # token list fails while the user doesn't exist yet
+  check_mode: false
+
+- name: OpenTofu | current state
+  ansible.builtin.set_fact:
+    pve_host_users: "{{ pve_host_read.results[0].stdout | from_json | map(attribute='userid') | list }}"
+    pve_host_role: "{{ pve_host_read.results[1].stdout | from_json | selectattr('roleid', 'eq', 'TofuApply') | list }}"
+    pve_host_acls: "{{ pve_host_read.results[2].stdout | from_json | map(attribute='ugid') | zip(pve_host_read.results[2].stdout | from_json | map(attribute='roleid')) | map('join', ':') | list }}"
+    pve_host_tokens: "{{ (pve_host_read.results[3].stdout or '[]') | from_json | map(attribute='tokenid') | list }}"
+
+- name: OpenTofu | role TofuApply (no user or ACL management)
+  ansible.builtin.command: >-
+    pveum role {{ 'modify' if pve_host_role else 'add' }} TofuApply --privs "{{ pve_host_tofu_apply_privs | split | join(',') }}"
+  when: not pve_host_role or (pve_host_role[0].privs | split(',') | sort) != (pve_host_tofu_apply_privs | split | sort)
+  changed_when: true
+
+- name: OpenTofu | user
+  ansible.builtin.command: pveum user add {{ pve_host_tofu_user }} --comment "OpenTofu (IaC)"
+  when: pve_host_tofu_user not in pve_host_users
+  changed_when: true
+
+- name: OpenTofu | ACLs on / (a privsep token gets only its own ACL, capped by the user's)
+  ansible.builtin.command: pveum acl modify / --{{ item.type }} '{{ item.id }}' --roles {{ item.role }}
+  loop:
+    - {type: users, id: "{{ pve_host_tofu_user }}", role: PVEAuditor}
+    - {type: users, id: "{{ pve_host_tofu_user }}", role: TofuApply}
+    - {type: tokens, id: "{{ pve_host_tofu_user }}!plan", role: PVEAuditor, token: plan}
+    - {type: tokens, id: "{{ pve_host_tofu_user }}!apply", role: TofuApply, token: apply}
+  when:
+    - item.id ~ ':' ~ item.role not in pve_host_acls
+    - item.token is not defined or item.token in pve_host_tokens
+  changed_when: true
+
+- name: OpenTofu | tokens still to create by hand
+  ansible.builtin.debug:
+    msg: >-
+      Missing token(s) {{ ['plan', 'apply'] | difference(pve_host_tokens) | join(', ') }}: run
+      `pveum user token add {{ pve_host_tofu_user }} <name> --privsep 1 --expire $(date -d '+1 year' +%s)`,
+      store `{{ pve_host_tofu_user }}!<name>=<secret>` in Proton Pass Homelab/proxmox-tofu-<name>, re-run this role.
+  when: "['plan', 'apply'] | difference(pve_host_tokens) | length > 0"

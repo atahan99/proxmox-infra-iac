@@ -1,0 +1,11 @@
+# Managed by Ansible (pve_host)
+[Unit]
+Description={{ job.description }} (weekly)
+
+[Timer]
+OnCalendar={{ job.when }}
+RandomizedDelaySec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

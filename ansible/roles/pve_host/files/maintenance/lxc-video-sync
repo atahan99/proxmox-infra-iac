@@ -1,0 +1,37 @@
+#!/bin/sh
+# Managed by Ansible (pve_host). Re-inject host V4L2 device nodes into LXC 104 (docker-hw).
+#
+# LXC evaluates `lxc.mount.entry: /dev/video0 ... bind,optional,create=file`
+# only at container start. Unplug/replug the webcam and the container is left
+# holding empty placeholder files instead of character devices, which
+# breaks Frigate/go2rtc. Called by 99-lxc-video.rules on every add/remove.
+#
+# ponytail: assumes the docker-level device mapping keeps working because the
+# minor number is stable (C920 -> 81,0 / 81,1). If the camera ever comes back
+# on a different minor, restart the frigate container to re-map it.
+set -e
+
+CTID=104
+
+# serialize: udev fires once per video node, so several copies race otherwise
+LOCK=/run/lxc-video-sync.lock
+[ "$1" = "--locked" ] || exec flock -w 10 "$LOCK" "$0" --locked
+
+pct status "$CTID" 2>/dev/null | grep -q running || exit 0
+
+spec=
+for dev in /dev/video*; do
+	[ -c "$dev" ] || continue
+	set -- $(stat -c '%t %T' "$dev")
+	spec="$spec ${dev#/dev/}:$((0x$1)):$((0x$2))"
+done
+
+lxc-attach -n "$CTID" -- sh -c '
+	rm -f /dev/video*
+	for e in '"$spec"'; do
+		n=${e%%:*}; r=${e#*:}
+		mknod -m 660 "/dev/$n" c "${r%%:*}" "${r##*:}"
+		chgrp video "/dev/$n" 2>/dev/null || true
+	done'
+
+logger -t lxc-video-sync "synced to CT $CTID:${spec:-none}"

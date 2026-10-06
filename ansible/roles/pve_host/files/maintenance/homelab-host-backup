@@ -1,0 +1,21 @@
+#!/bin/sh
+# Managed by Ansible (pve_host). Weekly: /etc + a consistent copy of the pmxcfs
+# database to the USB disk, ~12 kept. Plus a second copy of the PBS config export.
+set -eu
+umask 077 # the archive holds /etc/pve/priv (keys, token hashes, storage passwords)
+dest=/mnt/external/Proxmox/host-config
+mountpoint -q /mnt/external || { echo "/mnt/external is not mounted" >&2; exit 1; }
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+# Copying the live SQLite file can give a corrupt copy; .backup is consistent.
+sqlite3 /var/lib/pve-cluster/config.db ".backup '$tmp/config.db'"
+out="$dest/host-config-$(date +%F).tar.gz"
+tar -czf "$out" -C / etc -C "$tmp" config.db
+echo "wrote $out ($(du -h "$out" | cut -f1))"
+
+ls -1t "$dest"/host-config-*.tar.gz | tail -n +13 | xargs -r rm --
+
+if [ -d /var/lib/vz/pbs-config ]; then
+  cp -a /var/lib/vz/pbs-config/. /mnt/external/Proxmox/pbs-config/
+fi

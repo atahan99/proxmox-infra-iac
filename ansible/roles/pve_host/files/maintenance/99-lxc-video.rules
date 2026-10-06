@@ -1,0 +1,4 @@
+# Managed by Ansible (pve_host). Keep LXC 104 (docker-hw / Frigate) in sync with host V4L2 nodes across replugs.
+# systemd-run --no-block so udev does not wait on (or kill) lxc-attach.
+ACTION=="add|remove", SUBSYSTEM=="video4linux", KERNEL=="video*", \
+	RUN+="/usr/bin/systemd-run --no-block /usr/local/bin/lxc-video-sync"

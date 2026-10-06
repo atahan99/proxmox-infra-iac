@@ -1,0 +1,37 @@
+# Properties of the physical box, so they apply in every ENV.
+
+- name: Hardware | kernel command line (IOMMU, USB quirks for Coral + Seagate)
+  ansible.builtin.lineinfile:
+    path: /etc/default/grub
+    regexp: ^GRUB_CMDLINE_LINUX_DEFAULT=
+    line: GRUB_CMDLINE_LINUX_DEFAULT="{{ pve_kernel_cmdline }}"
+  notify: Update grub # takes effect after the next reboot
+
+- name: Hardware | iGPU driver + WireGuard at boot (guests cannot load modules; Kasm VPN egress needs WireGuard)
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/homelab.conf
+    content: "i915\nwireguard\n"
+    mode: "0644"
+
+- name: Hardware | USB disk mounted at boot (nofail, so a missing disk cannot block boot)
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^UUID="?{{ pve_usb_disk_uuid }}"?\s'
+    line: UUID={{ pve_usb_disk_uuid }} /mnt/external ext4 defaults,nofail 0 2
+
+# And now, so the folders made later land on the disk, not under the mountpoint on the NVMe. Not through
+# fstab: its nofail would hide a missing disk, which must fail the play here instead.
+- name: Hardware | USB disk mounted now # noqa: command-instead-of-module (ansible.posix is not in CI)
+  ansible.builtin.command: mount --mkdir -t ext4 UUID={{ pve_usb_disk_uuid }} /mnt/external
+  when: ansible_facts['mounts'] | selectattr('mount', 'eq', '/mnt/external') | list | length == 0
+  changed_when: true
+
+- name: Hardware | webcam replug sync into docker-hw (lxc-video-sync)
+  ansible.builtin.copy:
+    src: "maintenance/{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {src: lxc-video-sync, dest: /usr/local/bin/lxc-video-sync, mode: "0755"}
+    - {src: 99-lxc-video.rules, dest: /etc/udev/rules.d/99-lxc-video.rules, mode: "0644"}
+  notify: Reload udev
