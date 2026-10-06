@@ -1,0 +1,22 @@
+# Managed by Ansible (samba). Standalone server, one share, no registry, no printers.
+[global]
+   workgroup = WORKGROUP
+   server string = NAS
+   server role = standalone server
+   map to guest = never
+   log file = /var/log/samba/log.%m
+   max log size = 1000
+   logging = file
+   load printers = no
+   printing = bsd
+   printcap name = /dev/null
+   disable spoolss = yes
+
+[{{ samba_share_name }}]
+   path = {{ samba_share_path }}
+   valid users = {{ samba_user }}
+   read only = no
+   browseable = yes
+   # Plain Unix permissions: an unprivileged LXC can't write the security.* xattrs acl_xattr needs.
+   inherit permissions = yes
+   veto files = /{{ samba_veto | join('/') }}/

@@ -1,0 +1,11 @@
+# One share for the Windows PC: the USB disk, as user 1000 / group 1001 (passed through by the
+# lxc_devices idmap, so files keep their owners on the host).
+samba_share_name: NAS
+samba_share_path: /mnt/External
+samba_uid: 1000
+samba_gid: 1001 # the user's own group
+samba_extra_group: {name: sambausers, gid: 1000}
+# Never reachable through the share: the PBS datastore and the host config backups.
+samba_veto: [Backups, Proxmox, lost+found]
+# Username and password from Proton Pass (item `samba`), read on the Mac at run time.
+samba_password: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/samba/password') }}"

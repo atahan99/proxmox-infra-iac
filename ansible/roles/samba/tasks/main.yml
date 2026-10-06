@@ -1,0 +1,70 @@
+- name: Credentials | read the Samba login from Proton Pass (on the Mac)
+  ansible.builtin.set_fact:
+    samba_user: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/samba/username') }}"
+
+- name: Package
+  ansible.builtin.apt:
+    name: samba
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Users | groups with the ids the idmap passes through
+  ansible.builtin.group:
+    name: "{{ item.name }}"
+    gid: "{{ item.gid }}"
+  loop:
+    - {name: "{{ samba_user }}", gid: "{{ samba_gid }}"}
+    - "{{ samba_extra_group }}"
+
+- name: Users | share user (no shell login)
+  ansible.builtin.user:
+    name: "{{ samba_user }}"
+    uid: "{{ samba_uid }}"
+    group: "{{ samba_user }}"
+    groups: ["{{ samba_extra_group.name }}"]
+    shell: /usr/sbin/nologin
+    password: "!"
+    create_home: false
+
+- name: Share | folder (exists on the USB disk in prod)
+  ansible.builtin.file:
+    path: "{{ samba_share_path }}"
+    state: directory
+    owner: "{{ samba_uid }}"
+    group: "{{ samba_gid }}"
+    mode: "2775"
+
+- name: Config
+  ansible.builtin.template:
+    src: smb.conf.j2
+    dest: /etc/samba/smb.conf
+    mode: "0644"
+    validate: testparm -s %s
+  notify: Reload samba
+
+- name: Samba password | is the user in Samba's database
+  ansible.builtin.command: pdbedit -u {{ samba_user }}
+  register: samba_pdb
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Samba password | set from Proton Pass (only when the user is new, or samba_password_reset=true)
+  ansible.builtin.shell: >-
+    set -o pipefail &&
+    printf '%s\n%s\n' "$PW" "$PW" | smbpasswd -s -a {{ samba_user }}
+  args:
+    executable: /bin/bash
+  environment:
+    PW: "{{ samba_password }}"
+  when: samba_pdb.rc != 0 or samba_password_reset | default(false) | bool
+  no_log: true
+  changed_when: true
+
+- name: Services | smbd + nmbd (name lookup for Windows)
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: [smbd, nmbd]
+  ignore_errors: "{{ ansible_check_mode }}"
