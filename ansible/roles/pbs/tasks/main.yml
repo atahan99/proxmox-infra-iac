@@ -1,0 +1,90 @@
+# PBS in CT 108 plus what the Proxmox host needs to back up to it.
+
+- name: Host | datastore owned by the unprivileged backup user (once, slow)
+  ansible.builtin.import_tasks: host_chown.yml
+  # The datastore on the USB disk was written by a privileged PBS (uid 34); the new CT is unprivileged
+  # (needs host uid 100034). Only when re-attaching it: a lab PBS must never chown /mnt/external/Backups.
+  when: pbs_host_side and pbs_reuse_datastore
+
+- name: Repos | Proxmox archive keyring (SHA-256 pinned)
+  ansible.builtin.get_url:
+    url: https://enterprise.proxmox.com/debian/proxmox-archive-keyring-trixie.gpg
+    dest: /usr/share/keyrings/proxmox-archive-keyring.gpg
+    checksum: "sha256:{{ pbs_keyring_sha256 }}"
+    mode: "0644"
+
+- name: Repos | Debian, PBS no-subscription, enterprise off
+  ansible.builtin.copy:
+    dest: "/etc/apt/sources.list.d/{{ item.name }}"
+    content: "{{ item.content }}"
+    mode: "0644"
+  loop:
+    - name: debian.sources
+      content: |
+        Types: deb
+        URIs: http://deb.debian.org/debian
+        Suites: trixie trixie-updates
+        Components: main contrib
+        Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+        Types: deb
+        URIs: http://security.debian.org/debian-security
+        Suites: trixie-security
+        Components: main contrib
+        Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+    - name: proxmox.sources
+      content: |
+        Types: deb
+        URIs: http://download.proxmox.com/debian/pbs
+        Suites: trixie
+        Components: pbs-no-subscription
+        Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
+    - name: pbs-enterprise.sources
+      content: |
+        Types: deb
+        URIs: https://enterprise.proxmox.com/debian/pbs
+        Suites: trixie
+        Components: pbs-enterprise
+        Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
+        Enabled: false
+  loop_control:
+    label: "{{ item.name }}"
+  register: pbs_repos
+
+- name: Repos | legacy one-line files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/apt/sources.list
+
+- name: Package
+  ansible.builtin.apt:
+    name: proxmox-backup-server
+    update_cache: "{{ pbs_repos is changed }}"
+
+- name: UI | apt hook that keeps the subscription pop-up removed
+  ansible.builtin.copy:
+    src: 86pbs-no-nag
+    dest: /etc/apt/apt.conf.d/86pbs-no-nag
+    mode: "0644"
+
+- name: UI | remove the subscription pop-up now
+  ansible.builtin.shell: |
+    f=/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js
+    grep -q NoMoreNagging $f && exit 0
+    sed -i '/data\.status/{s/\!//;s/active/NoMoreNagging/}' $f && echo patched
+  register: pbs_nag
+  changed_when: "'patched' in pbs_nag.stdout"
+
+- name: Login | root@pam password for the web UI (fixed salt, so the hash is stable)
+  ansible.builtin.user:
+    name: root
+    password: "{{ pbs_root_password | password_hash('sha512', (inventory_hostname | hash('sha256'))[:16]) }}"
+  no_log: true
+
+- name: Datastore and jobs
+  ansible.builtin.import_tasks: datastore.yml
+
+- name: Backup token for the host
+  ansible.builtin.import_tasks: token.yml

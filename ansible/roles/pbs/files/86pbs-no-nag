@@ -1,0 +1,2 @@
+// Managed by Ansible (pbs): re-remove the subscription pop-up after proxmox-widget-toolkit updates.
+DPkg::Post-Invoke { "f=/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js; if [ -s $f ] && ! grep -q NoMoreNagging $f; then sed -i '/data\.status/{s/\!//;s/active/NoMoreNagging/}' $f; fi"; };

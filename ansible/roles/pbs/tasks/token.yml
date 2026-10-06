@@ -1,0 +1,111 @@
+- name: Token | users, tokens, ACLs
+  ansible.builtin.command: "proxmox-backup-manager {{ item }} --output-format json"
+  loop: [user list, "user list-tokens {{ pbs_backup_user }}", acl list]
+  register: pbs_auth
+  changed_when: false
+  failed_when: false # list-tokens fails while the user doesn't exist yet
+  check_mode: false
+
+- name: Token | user
+  ansible.builtin.command: proxmox-backup-manager user create {{ pbs_backup_user }} --comment "Proxmox host backups (vzdump)"
+  when: pbs_backup_user not in (pbs_auth.results[0].stdout | from_json | map(attribute='userid'))
+  changed_when: true
+
+- name: Token | existing backup groups owned by the token (PBS only lets the owner add to a group)
+  # The existing groups belong to root@pam, which backed them up before the rebuild.
+  ansible.builtin.shell: |
+    set -o pipefail
+    for f in {{ pbs_datastore_path }}/{ct,vm,host}/*/owner; do
+      [ -f "$f" ] && [ ! -L "$f" ] || continue # never follow a symlink as root
+      [ "$(cat "$f")" = "{{ pbs_token_id }}" ] && continue
+      printf '%s' "{{ pbs_token_id }}" > "$f" && echo "$f"
+    done
+  args:
+    executable: /bin/bash
+  register: pbs_owners
+  changed_when: pbs_owners.stdout | length > 0
+  when: pbs_reuse_datastore
+
+- name: Token | host storage entry
+  ansible.builtin.command: pvesh get /storage/{{ pbs_storage_id }} --output-format json
+  delegate_to: pve
+  register: pbs_storage
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: pbs_host_side
+
+- name: Token | (re)create the token and point the host storage at it
+  when:
+    - pbs_host_side
+    - pbs_storage.rc != 0 or (pbs_storage.stdout | from_json).username | default('') != pbs_token_id
+  block:
+    - name: Token | drop a token whose secret is unknown
+      ansible.builtin.command: proxmox-backup-manager user delete-token {{ pbs_backup_user }} {{ pbs_backup_token }}
+      when: pbs_backup_token in ((pbs_auth.results[1].stdout or '[]') | from_json | map(attribute='token-name'))
+      changed_when: true
+
+    - name: Token | generate (the secret goes straight to the host, never shown or stored elsewhere)
+      ansible.builtin.command: proxmox-backup-manager user generate-token {{ pbs_backup_user }} {{ pbs_backup_token }}
+      register: pbs_token
+      no_log: true
+      changed_when: true
+
+    - name: Token | permission first (adding the storage logs in to check it)
+      ansible.builtin.command: proxmox-backup-manager acl update /datastore/{{ pbs_datastore }} DatastoreBackup --auth-id {{ item }}
+      loop: ["{{ pbs_backup_user }}", "{{ pbs_token_id }}"]
+      changed_when: true
+
+    - name: Token | PBS certificate fingerprint
+      ansible.builtin.shell: |
+        set -o pipefail
+        proxmox-backup-manager cert info | sed -n 's/.*Fingerprint (sha256): //p'
+      args:
+        executable: /bin/bash
+      register: pbs_fingerprint
+      changed_when: false
+      check_mode: false
+
+    - name: Token | (check mode) what would change
+      ansible.builtin.debug:
+        msg: >-
+          Would (re)create {{ pbs_token_id }} and {{ 'switch' if pbs_storage.rc == 0 else 'add' }} host storage
+          {{ pbs_storage_id }} to it{{ ' (currently: ' ~ (pbs_storage.stdout | from_json).username ~ ')' if pbs_storage.rc == 0 else '' }}.
+      when: ansible_check_mode
+
+    - name: Token | host storage entry
+      when: not ansible_check_mode # needs the secret from the generate step, which check mode skips
+      ansible.builtin.command: >-
+        pvesm {{ 'set' if pbs_storage.rc == 0 else 'add pbs' }} {{ pbs_storage_id }}
+        {{ '' if pbs_storage.rc == 0 else '--server ' ~ ansible_host ~ ' --datastore ' ~ pbs_datastore ~ ' --content backup' }}
+        --username {{ pbs_token_id }} --password {{ (pbs_token.stdout | regex_replace("^Result: ", "") | from_json).value }}
+        --fingerprint {{ pbs_fingerprint.stdout }} --prune-backups keep-all=1
+      delegate_to: pve
+      no_log: true
+      changed_when: true
+
+- name: Token | backup-only access to the datastore (user and token, since a token never exceeds its user)
+  ansible.builtin.command: proxmox-backup-manager acl update /datastore/{{ pbs_datastore }} DatastoreBackup --auth-id '{{ item }}'
+  # The token exists only where the host side ran (it is created together with the storage entry).
+  loop: "{{ [pbs_backup_user] + ([pbs_token_id] if pbs_host_side else []) }}"
+  when: item ~ ':DatastoreBackup' not in (pbs_auth.results[2].stdout | from_json | map(attribute='ugid') | zip(pbs_auth.results[2].stdout | from_json | map(attribute='roleid')) | map('join', ':'))
+  changed_when: true
+
+- name: Host | backup job
+  when: pbs_host_side and pbs_vzdump_job
+  block:
+    - name: Host | current backup jobs
+      ansible.builtin.command: pvesh get /cluster/backup --output-format json
+      delegate_to: pve
+      register: pbs_jobs
+      changed_when: false
+      check_mode: false
+
+    - name: Host | create the backup job (all guests except PBS itself and the ClamAV LXC)
+      ansible.builtin.command: >-
+        pvesh create /cluster/backup --id {{ pbs_vzdump.id }} --schedule '{{ pbs_vzdump.schedule }}'
+        --all 1 --exclude {{ pbs_vzdump.exclude }} --storage {{ pbs_storage_id }} --mode snapshot
+        --notes-template '{{ "{{" }}guestname{{ "}}" }}' --fleecing 0 --enabled 1
+      delegate_to: pve
+      when: pbs_vzdump.id not in (pbs_jobs.stdout | from_json | map(attribute='id'))
+      changed_when: true

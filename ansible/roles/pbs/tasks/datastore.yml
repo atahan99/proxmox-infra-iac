@@ -1,0 +1,37 @@
+- name: Datastore | current datastores and jobs
+  ansible.builtin.command: "proxmox-backup-manager {{ item }} list --output-format json"
+  loop: [datastore, prune-job, verify-job]
+  register: pbs_lists
+  changed_when: false
+  check_mode: false
+
+- name: Datastore | folder (lab only; prod is the USB disk)
+  ansible.builtin.file:
+    path: "{{ pbs_datastore_path }}"
+    state: directory
+    owner: backup
+    group: backup
+    mode: "0750"
+  when: not pbs_reuse_datastore
+
+- name: Datastore | create, or re-attach the existing one on the USB disk
+  ansible.builtin.command: >-
+    proxmox-backup-manager datastore create {{ pbs_datastore }} {{ pbs_datastore_path }}
+    --gc-schedule '{{ pbs_gc_schedule }}' --notification-mode notification-system
+    {{ '--reuse-datastore true' if pbs_reuse_datastore else '' }}
+  when: pbs_datastore not in (pbs_lists.results[0].stdout | from_json | map(attribute='name'))
+  changed_when: true
+
+- name: Datastore | prune job
+  ansible.builtin.command: >-
+    proxmox-backup-manager prune-job create default-{{ pbs_datastore }} --store {{ pbs_datastore }}
+    {% for k, v in pbs_prune.items() %}--{{ k }} '{{ v }}' {% endfor %}
+  when: pbs_datastore not in (pbs_lists.results[1].stdout | from_json | map(attribute='store'))
+  changed_when: true
+
+- name: Datastore | verify job
+  ansible.builtin.command: >-
+    proxmox-backup-manager verify-job create verify-{{ pbs_datastore }} --store {{ pbs_datastore }}
+    {% for k, v in pbs_verify.items() %}--{{ k }} '{{ v }}' {% endfor %}
+  when: pbs_datastore not in (pbs_lists.results[2].stdout | from_json | map(attribute='store'))
+  changed_when: true

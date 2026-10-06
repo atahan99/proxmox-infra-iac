@@ -1,0 +1,24 @@
+pbs_keyring_sha256: 136673be77aba35dcce385b28737689ad64fd785a797e57897589aed08db6e45
+
+pbs_datastore: PVE-BCP
+pbs_datastore_path: /mnt/backups # the USB disk's Backups/ (lxc_devices mp0)
+pbs_reuse_datastore: true # re-attach the existing datastore on the USB disk (it survives a host rebuild); lab: false (new, empty)
+pbs_gc_schedule: sun 8:10
+pbs_prune: {schedule: "sun 7:15", keep-last: 3, keep-daily: 7, keep-weekly: 4, keep-monthly: 2} # ~2 months of history
+pbs_verify: {schedule: "sun 09:00", outdated-after: 30, verify-threads: 2}
+
+# The host backs up with a token that can only back up to this datastore (no deletes, no admin).
+pbs_backup_user: pve@pbs
+pbs_backup_token: vzdump
+pbs_root_password: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/pbs/password') }}" # web UI only
+
+# Host side (storage entry, backup job, one-time chown). Off in the lab: never point the real host at it.
+pbs_host_side: true
+pbs_storage_id: pve-bcp
+pbs_vzdump_job: true # lab: false (a lab PBS must never receive the real guests)
+pbs_vzdump: # every 3 days; not PBS itself, not the ClamAV LXC (nothing to restore)
+  id: guests
+  schedule: "*-*-1/3 05:00"
+  exclude: "{{ ([vmid] + groups['clamav_servers'] | map('extract', hostvars, 'vmid') | list) | join(',') }}"
+
+pbs_token_id: "{{ pbs_backup_user }}!{{ pbs_backup_token }}"
