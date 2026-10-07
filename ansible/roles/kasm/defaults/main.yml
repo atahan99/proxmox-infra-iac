@@ -1,0 +1,16 @@
+# Kasm installs with its own installer and starts empty: workspaces and egress are set up by hand in its
+# admin UI (docs/runbooks/install.md), first login from /root/kasm-install-logins.
+kasm_version: 1.19.0
+# From Kasm's own .sha256sum next to the tarball (their docs page lists an older value).
+kasm_sha256: 8caaa12d97fdd0c20b39b10f50ebe2e0da1951b22a427c60a06491a9ed515d6d
+kasm_port: 443
+# --no-images: workspace images are pulled by the agent for the workspaces you add, not all defaults.
+# --skip-v4l2loopback: needs a kernel module, which an LXC can't load.
+# Egress stays on: its sidecar network plugin carries the optional ProtonVPN gateway (picked per session
+# at launch, set up in Kasm's admin UI). WireGuard comes from the host kernel
+# (pve_host loads the module; an LXC can't), so the installer's own WireGuard step has nothing to do.
+kasm_install_flags: [--no-images, --skip-v4l2loopback]
+
+# Nightly database dump (also inside the PBS backup of the container).
+kasm_backup_dir: /var/backups/kasm
+kasm_backup_days: 14

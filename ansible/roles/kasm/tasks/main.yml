@@ -1,0 +1,130 @@
+- name: Install | already installed?
+  ansible.builtin.stat:
+    path: /opt/kasm/current
+  register: kasm_current
+
+- name: Install | Kasm with its installer (only when not installed; upgrades use Kasm's upgrade.sh)
+  when: not kasm_current.stat.exists
+  block:
+    - name: Install | sudo (the installer calls it, e.g. for its swap check; minimal Debian has none)
+      ansible.builtin.apt:
+        name: sudo
+
+    - name: Install | release (checked against Kasm's published SHA-256)
+      ansible.builtin.get_url:
+        url: "https://kasm-static-content.s3.amazonaws.com/kasm_release_{{ kasm_version }}.tar.gz"
+        dest: "/var/cache/kasm_release_{{ kasm_version }}.tar.gz"
+        checksum: "sha256:{{ kasm_sha256 }}"
+        mode: "0644"
+
+    - name: Install | unpack
+      ansible.builtin.unarchive:
+        src: "/var/cache/kasm_release_{{ kasm_version }}.tar.gz"
+        dest: /var/cache
+        remote_src: true
+      ignore_errors: "{{ ansible_check_mode }}"
+
+    - name: Install | bootstrap logins (first admin login; root-only)
+      ansible.builtin.copy:
+        dest: /root/kasm-install-logins
+        content: |
+          admin@kasm.local {{ lookup('ansible.builtin.password', '/dev/null chars=ascii_letters,digits length=24') }}
+          user@kasm.local {{ lookup('ansible.builtin.password', '/dev/null chars=ascii_letters,digits length=24') }}
+        mode: "0600"
+        force: false
+      no_log: true
+
+    - name: Install | read the bootstrap logins
+      ansible.builtin.slurp:
+        src: /root/kasm-install-logins
+      register: kasm_logins
+      no_log: true
+      ignore_errors: "{{ ansible_check_mode }}"
+
+    - name: Install | run the installer (pulls Kasm's service images; takes a while)
+      ansible.builtin.command: >-
+        bash /var/cache/kasm_release/install.sh --accept-eula --proxy-port {{ kasm_port }}
+        --admin-password {{ (kasm_logins.content | b64decode).splitlines()[0].split()[1] }}
+        --user-password {{ (kasm_logins.content | b64decode).splitlines()[1].split()[1] }}
+        {{ kasm_install_flags | join(' ') }}
+      args:
+        creates: /opt/kasm/current
+      no_log: "{{ not (kasm_debug | default(false) | bool) }}" # kasm_debug=true shows the error (lab only)
+      when: not ansible_check_mode
+
+- name: Maintenance | weekly prune of untagged images (never -a, so idle workspace images stay) + nightly DB dump
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item.name }}"
+    content: "{{ item.content }}"
+    mode: "0644"
+  loop:
+    - name: docker-prune-dangling.service
+      content: |
+        # Managed by Ansible (kasm)
+        [Unit]
+        Description=Remove untagged Docker images (old Kasm service versions)
+        After=docker.service
+        Requires=docker.service
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/docker image prune -f
+    - name: docker-prune-dangling.timer
+      content: |
+        # Managed by Ansible (kasm)
+        [Unit]
+        Description=Weekly removal of untagged Docker images
+
+        [Timer]
+        OnCalendar=Sun 04:30
+        RandomizedDelaySec=30m
+        Persistent=true
+
+        [Install]
+        WantedBy=timers.target
+    - name: kasm-db-backup.service
+      content: |
+        # Managed by Ansible (kasm)
+        [Unit]
+        Description=Dump the Kasm database
+        After=docker.service
+        Requires=docker.service
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/sbin/kasm-db-backup {{ kasm_backup_dir }} {{ kasm_backup_days }}
+    - name: kasm-db-backup.timer
+      content: |
+        # Managed by Ansible (kasm)
+        [Unit]
+        Description=Nightly Kasm database dump (before the 05:00 PBS backup)
+
+        [Timer]
+        OnCalendar=*-*-* 03:30
+        Persistent=true
+
+        [Install]
+        WantedBy=timers.target
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Backup | database dump script (from Kasm's backup_db role)
+  ansible.builtin.copy:
+    src: kasm-db-backup
+    dest: /usr/local/sbin/kasm-db-backup
+    mode: "0755"
+
+- name: Backup | dump folder (root only)
+  ansible.builtin.file:
+    path: "{{ kasm_backup_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Maintenance | timers enabled
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop: [docker-prune-dangling.timer, kasm-db-backup.timer]
+  ignore_errors: "{{ ansible_check_mode }}"

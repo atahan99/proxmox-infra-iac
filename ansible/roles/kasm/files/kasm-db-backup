@@ -1,0 +1,16 @@
+#!/bin/bash
+# Managed by Ansible (kasm). Based on Kasm's own backup script:
+# https://github.com/kasmtech/ansible/blob/release/1.19.0/roles/backup_db/files/backup.sh
+# Dumps the Kasm database (users, workspaces, settings; without the logs table).
+# Restore: /opt/kasm/current/bin/utils/db_restore --backup-file <file>
+# Usage: kasm-db-backup <dir> <retention-days>
+set -euo pipefail
+dir=$1
+days=$2
+mkdir -p "$dir"
+out="$dir/kasm_db_backup_$(date +%Y%m%d_%H.%M.%S).tar.gz"
+docker exec kasm_db /bin/bash -c "pg_dump -U kasmapp -w -Ft --exclude-table-data=logs kasm | gzip > /tmp/db_backup.tar.gz"
+docker cp kasm_db:/tmp/db_backup.tar.gz "$out"
+docker exec kasm_db rm -f /tmp/db_backup.tar.gz
+find "$dir" -name 'kasm_db_backup_*.tar.gz' -mtime +"$days" -type f -delete
+echo "$out"
