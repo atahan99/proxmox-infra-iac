@@ -1,0 +1,98 @@
+# Reverse proxy: one wildcard certificate (Let's Encrypt, Cloudflare DNS-01), routes from Docker labels
+# (via the read-only socket proxy) and from files for services outside Docker.
+name: traefik
+services:
+  traefik:
+    image: traefik:v3.7.13@sha256:24841fe2de7304c149343d877d2923b4c8800a38ba015dea9174c23b20e344a0
+    container_name: traefik
+    restart: unless-stopped
+    env_file:
+      - path: /opt/secrets/traefik.env # CF_DNS_API_TOKEN
+        required: false
+    environment:
+      # dynamic/*.yml read these ({{ env "DOMAIN" }})
+      DOMAIN: ${DOMAIN:?DOMAIN is set in the stack's .env}
+      LAN_CIDR: ${LAN_CIDR}
+      PVE_IP: ${PVE_IP}
+      PBS_IP: ${PBS_IP}
+      KASM_IP: ${KASM_IP}
+      PIKVM_IP: ${PIKVM_IP}
+      DOCKER_HW_IP: ${DOCKER_HW_IP}
+      HA_IP: ${HA_IP}
+      PLEX_IP: ${PLEX_IP}
+    command:
+      - --providers.docker=true
+      - --providers.docker.endpoint=tcp://socket-proxy:2375
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=proxy
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.websecure.http.tls.certresolver=le
+      - --entrypoints.websecure.http.middlewares=strip-identity@file # see dynamic/middlewares.yml
+      - --entrypoints.websecure.http.tls.domains[0].main=${DOMAIN:?DOMAIN is set in the stack's .env}
+      - --entrypoints.websecure.http.tls.domains[0].sans=*.${DOMAIN}
+      - --certificatesresolvers.le.acme.dnschallenge.provider=cloudflare
+      # The router only lets LAN devices query AdGuard (VIP .5) on port 53, so: zone lookups via
+      # AdGuard, no direct queries to Cloudflare's nameservers, a fixed wait instead (Cloudflare
+      # publishes within seconds; Let's Encrypt validates from the internet anyway).
+      - --certificatesresolvers.le.acme.dnschallenge.resolvers=${DNS_VIP}:53
+      - --certificatesresolvers.le.acme.dnschallenge.propagation.disableChecks=true
+      - --certificatesresolvers.le.acme.dnschallenge.propagation.delayBeforeChecks=60s
+      - --certificatesresolvers.le.acme.storage=/data/acme.json
+      - --api.dashboard=true
+      - --ping=true
+      - --log.level=INFO
+      - --accesslog=true
+      - --metrics.prometheus=true
+      - --global.checknewversion=false
+      - --global.sendanonymoususage=false
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/appdata/traefik:/data
+      - ./dynamic:/etc/traefik/dynamic:ro
+    networks:
+      proxy:
+        # Apps that check OIDC tokens server-side (Grafana) reach Authelia here, not via the LAN DNS.
+        aliases: ["auth.${DOMAIN}"]
+      socket-proxy:
+      forgejo:
+      linkding:
+      dozzle:
+      code-server:
+      monitoring: # Prometheus/Loki routes, and Prometheus scrapes Traefik
+      dockhand:
+        # Dockhand checks Authelia's OIDC tokens server-side: auth.<domain> resolves to Traefik here,
+        # whatever the LAN DNS says.
+        aliases: ["auth.${DOMAIN}"]
+    healthcheck:
+      test: [CMD, traefik, healthcheck, --ping]
+      interval: 30s
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.traefik.rule: Host(`traefik.${DOMAIN}`)
+      traefik.http.routers.traefik.service: api@internal
+      traefik.http.routers.traefik.middlewares: authelia@file
+
+networks:
+  proxy:
+    external: true
+  socket-proxy:
+    external: true
+  dockhand:
+    external: true
+  forgejo:
+    external: true
+  linkding:
+    external: true
+  dozzle:
+    external: true
+  code-server:
+    external: true
+  monitoring:
+    external: true

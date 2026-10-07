@@ -1,0 +1,76 @@
+# Routes to services outside Docker on docker-apps (file provider; Traefik reloads this on change).
+# Login:
+# - Authelia in front (browser-only UIs): Proxmox, PBS, Kasm, PiKVM.
+# - The app's own login only (apps and integrations can't do Authelia): Home Assistant, Plex, Immich, and
+#   Frigate (Home Assistant's integration calls its API). Still
+#   LAN + Tailscale only, like everything here.
+# Self-signed backends use the `self-signed` transport. ponytail: no verification, the same accepted gap as
+# the Proxmox API (docs/security.md); their CAs are regenerated on every reinstall.
+http:
+  routers:
+    proxmox:
+      rule: Host(`proxmox.{{ env "DOMAIN" }}`)
+      service: proxmox
+      middlewares: [authelia]
+    pbs:
+      rule: Host(`pbs.{{ env "DOMAIN" }}`)
+      service: pbs
+      middlewares: [authelia]
+    kasm:
+      rule: Host(`kasm.{{ env "DOMAIN" }}`)
+      service: kasm
+      middlewares: [authelia]
+    pikvm:
+      rule: Host(`pikvm.{{ env "DOMAIN" }}`)
+      service: pikvm
+      middlewares: [authelia]
+    frigate:
+      rule: Host(`frigate.{{ env "DOMAIN" }}`)
+      service: frigate
+      middlewares: [lan-tailscale]
+    homeassistant:
+      rule: Host(`homeassistant.{{ env "DOMAIN" }}`)
+      service: homeassistant
+      middlewares: [lan-tailscale]
+    plex:
+      rule: Host(`plex.{{ env "DOMAIN" }}`)
+      service: plex
+      middlewares: [lan-tailscale, strip-cookies] # internet-exposed: never sees the Authelia session
+    immich:
+      rule: Host(`immich.{{ env "DOMAIN" }}`)
+      service: immich
+      middlewares: [lan-tailscale]
+
+  services:
+    proxmox:
+      loadBalancer:
+        servers: [{url: 'https://{{ env "PVE_IP" }}:8006'}]
+        serversTransport: self-signed
+    pbs:
+      loadBalancer:
+        servers: [{url: 'https://{{ env "PBS_IP" }}:8007'}]
+        serversTransport: self-signed
+    kasm:
+      loadBalancer:
+        servers: [{url: 'https://{{ env "KASM_IP" }}'}]
+        serversTransport: self-signed
+    pikvm:
+      loadBalancer:
+        servers: [{url: 'https://{{ env "PIKVM_IP" }}'}]
+        serversTransport: self-signed
+    frigate: # docker-hw: Frigate's authenticated port (its TLS is off in its config; Traefik does TLS)
+      loadBalancer:
+        servers: [{url: 'http://{{ env "DOCKER_HW_IP" }}:8971'}]
+    homeassistant: # trusts docker-apps as its proxy (homeassistant/config/configuration.yaml)
+      loadBalancer:
+        servers: [{url: 'http://{{ env "HA_IP" }}:8123'}]
+    plex:
+      loadBalancer:
+        servers: [{url: 'http://{{ env "PLEX_IP" }}:32400'}]
+    immich: # docker-hw
+      loadBalancer:
+        servers: [{url: 'http://{{ env "DOCKER_HW_IP" }}:2283'}]
+
+  serversTransports:
+    self-signed:
+      insecureSkipVerify: true

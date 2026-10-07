@@ -1,0 +1,31 @@
+# GET-only, allowlisted Docker API for Traefik, Dozzle, Beszel and Alloy. Only Dockhand gets the real socket.
+name: socket-proxy
+services:
+  socket-proxy:
+    image: wollomatic/socket-proxy:1.13.1@sha256:3935b709275e4ec35d6ed5a5c4a1f0d01ed31eec5e7234efc3357ecd47689002
+    container_name: socket-proxy
+    restart: unless-stopped
+    # Allowlist, not tecnativa's per-section on/off: GET only on what the clients use (no archive/export,
+    # which would hand out any container's files). Root, but no capabilities: owner of the socket is
+    # enough, and the image has no group to match the LXC's docker gid.
+    user: "0:0"
+    cap_drop: [ALL]
+    read_only: true
+    command:
+      - -listenip=0.0.0.0
+      - -allowfrom=traefik,dozzle,beszel-agent,alloy
+      - -allowGET=/(v[0-9.]+/)?(_ping|version|info|events|networks(/[^/]+)?|containers/json|containers/[^/]+/(json|logs|stats))
+      - -allowHEAD=/(v[0-9.]+/)?_ping # clients' API version negotiation
+      - -allowhealthcheck
+      - -watchdoginterval=300
+      - -stoponwatchdog # socket gone (Docker restarted): exit, restart policy reconnects
+    healthcheck:
+      test: [CMD, /healthcheck]
+      interval: 30s
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [socket-proxy]
+
+networks:
+  socket-proxy:
+    external: true # created --internal by Ansible: no route out, only its members reach the API

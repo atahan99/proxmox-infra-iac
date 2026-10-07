@@ -1,0 +1,35 @@
+# Shared middlewares. Routers reference them as <name>@file.
+http:
+  middlewares:
+    authelia:
+      forwardAuth:
+        address: http://authelia:9091/api/authz/forward-auth
+        trustForwardHeader: true
+        authResponseHeaders: [Remote-User, Remote-Groups, Remote-Email, Remote-Name]
+        maxResponseBodySize: 1048576 # Authelia's answers are tiny
+    lan-tailscale:
+      ipAllowList:
+        sourceRange: ['{{ env "LAN_CIDR" }}', 100.64.0.0/10] # LAN + Tailscale CGNAT
+    # On every request (websecure entrypoint, before any route): drop identity headers a client sent
+    # itself, in both spellings: WSGI apps (linkding) read Remote_User as Remote-User. Authelia's
+    # forward-auth then sets the real Remote-User on the routes it protects.
+    strip-identity:
+      headers:
+        customRequestHeaders:
+          Remote-User: ""
+          Remote-Groups: ""
+          Remote-Email: ""
+          Remote-Name: ""
+          Remote_User: ""
+          Remote_Groups: ""
+          Remote_Email: ""
+          Remote_Name: ""
+    # Plex web uses X-Plex-Token, not cookies. Not for Home Assistant (its ingress needs a cookie).
+    strip-cookies:
+      headers:
+        customRequestHeaders:
+          Cookie: ""
+    # Routes that skip Authelia (apps' own APIs with their own tokens): LAN + Tailscale only.
+    api-bypass:
+      chain:
+        middlewares: [lan-tailscale, strip-identity]
