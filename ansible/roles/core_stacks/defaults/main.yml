@@ -1,0 +1,39 @@
+# Stacks Ansible starts with plain `docker compose` on this host (Dockhand needs them before it can deploy
+# anything): docker-apps' core stacks here; docker-hw and kasm set [hawser]. The Traefik networks and the
+# Authelia steps only run where those stacks are.
+core_stacks_names: [socket-proxy, authelia, traefik, dockhand]
+core_stacks_domain: "{{ homelab_domain }}" # lab: lab.<domain>
+
+# Secrets of the stacks on this host (core + dockhand_config_stacks): every
+# stacks/<stack>/secrets/<file>.tpl holds pass:// references and is rendered on the Mac with
+# `pass-cli inject` (one call per file) to /opt/secrets/<file> (root, 0600), for env_file or a mount.
+# Dockhand doesn't redeploy a stack on a secret change.
+# Values that aren't a plain Proton Pass field go here instead, under "<stack>/<file>": env vars as a mapping,
+# or a whole file as a string. An entry replaces the template of the same name (the lab uses this for random
+# values).
+core_stacks_secrets:
+  vpn-services/vpn-services-qbittorrent.env: # written into qBittorrent.conf by qbittorrent-init.sh
+    QBT_WEBUI_USERNAME: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/qbittorrent/username') }}"
+    QBT_WEBUI_PASSWORD_PBKDF2: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/qbittorrent/password') | qbt_password_hash }}"
+  # ntfy's users as bcrypt hashes (fixed salt, so the hash is stable): the phone's login (admin) and
+  # `alerts`, which only senders' tokens use (its password: the Grafana token, never typed anywhere).
+  ntfy/ntfy-users.env: {NTFY_AUTH_USERS: "{{ core_stacks_ntfy_users }}"}
+core_stacks_ntfy_admin_user: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/ntfy/username') }}"
+core_stacks_ntfy_admin_password: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/ntfy/password') }}"
+core_stacks_ntfy_alerts_password: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/ntfy/token_grafana') }}"
+core_stacks_ntfy_users: >-
+  {{ core_stacks_ntfy_admin_user }}:{{ core_stacks_ntfy_admin_password
+  | password_hash('bcrypt', salt=('ntfy-admin' | hash('sha256'))[:21] ~ 'e', ident='2a') }}:admin,alerts:{{
+  core_stacks_ntfy_alerts_password | password_hash('bcrypt', salt=('ntfy-alerts' | hash('sha256'))[:21] ~ 'e', ident='2a') }}:user
+
+# The Authelia login (one user).
+core_stacks_authelia_user: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/authelia/username') }}"
+core_stacks_authelia_password: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/authelia/password') }}"
+
+# OIDC clients of Authelia (each also needs an entry in stacks/authelia/configuration.yml). Their
+# secrets are generated on the host in /opt/appdata/authelia/oidc/ and backed up with the CT.
+core_stacks_oidc_clients: [dockhand, grafana, vikunja]
+# Clients that read their secret from an env var: client -> variable, in /opt/secrets/oidc-<client>.env.
+core_stacks_oidc_env:
+  grafana: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+  vikunja: VIKUNJA_AUTH_OPENID_PROVIDERS_AUTHELIA_CLIENTSECRET

@@ -1,0 +1,45 @@
+# The password reaches the host only on stdin. A new argon2id hash is made only when the stored
+# one no longer matches, so the file (and the Authelia container) stay unchanged otherwise.
+- name: Authelia | hashing helper (python3-argon2)
+  ansible.builtin.apt:
+    name: python3-argon2
+
+- name: Authelia | helper script
+  ansible.builtin.copy:
+    src: authelia-hash
+    dest: /usr/local/sbin/authelia-hash
+    mode: "0700"
+
+- name: Authelia | current user file
+  ansible.builtin.slurp:
+    src: /opt/appdata/authelia/users.yml
+  register: core_stacks_authelia_users_file
+  failed_when: false
+  no_log: true
+
+- name: Authelia | hash (kept while it still matches the password)
+  ansible.builtin.command:
+    argv: [/usr/local/sbin/authelia-hash, "{{ core_stacks_authelia_current_hash }}"]
+    stdin: "{{ core_stacks_authelia_password }}"
+  vars:
+    core_stacks_authelia_current_hash: "{{ ((core_stacks_authelia_users_file.content | default('') | b64decode | from_yaml) or {}).users[core_stacks_authelia_user].password | default('') }}"
+  register: core_stacks_authelia_hash
+  changed_when: false
+  check_mode: false
+  no_log: "{{ not (core_stacks_debug | default(false) | bool) }}" # core_stacks_debug=true: lab only
+
+- name: Authelia | user file (one user, in group admins)
+  ansible.builtin.copy:
+    dest: /opt/appdata/authelia/users.yml
+    content: |
+      # Managed by Ansible (core_stacks)
+      users:
+        {{ core_stacks_authelia_user }}:
+          displayname: {{ core_stacks_authelia_user }}
+          password: '{{ core_stacks_authelia_hash.stdout }}'
+          email: {{ core_stacks_authelia_user }}@{{ core_stacks_domain }}
+          groups: [admins]
+    mode: "0600"
+  register: core_stacks_authelia_file
+  diff: false
+  no_log: true

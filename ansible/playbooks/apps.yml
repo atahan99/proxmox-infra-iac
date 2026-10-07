@@ -1,0 +1,21 @@
+# docker-hw: engine + Hawser (Dockhand deploys the agents, Frigate and Immich through it) and the secrets
+# of those stacks.
+- name: Docker hardware host
+  hosts: docker_hw
+  roles:
+    - docker_engine
+    - core_stacks
+
+# kasm: Hawser only, so Dockhand can watch Kasm's containers (Docker comes with Kasm).
+- name: Kasm host
+  hosts: kasm_servers
+  roles:
+    - core_stacks
+
+# Docker hosts: engine + the core stacks (docker-apps). App stacks are deployed by Dockhand.
+- name: Docker apps host
+  hosts: docker_apps
+  roles:
+    - docker_engine
+    - core_stacks
+    - dockhand_config

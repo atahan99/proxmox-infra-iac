@@ -1,0 +1,126 @@
+# Apps that trust Authelia's Remote-User header (Dockhand, Forgejo, Linkding, Dozzle), and code-server (a
+# shell with only Authelia in front), get a network of their own with Traefik as the only other member, so
+# no other container can reach them.
+- name: Networks | proxy (Traefik <-> apps), socket-proxy (internal, no route out), one per header-trusting app
+  ansible.builtin.command: docker network create {{ item.flags }} {{ item.name }}
+  loop:
+    - {name: proxy, flags: ""}
+    - {name: socket-proxy, flags: --internal}
+    - {name: dockhand, flags: ""} # Traefik <-> Dockhand only (Dockhand needs internet for git)
+    - {name: forgejo, flags: --subnet 10.250.0.0/29} # fixed: Forgejo trusts this subnet's Remote-User
+    - {name: linkding, flags: ""}
+    - {name: dozzle, flags: ""}
+    - {name: code-server, flags: ""} # no login of its own (Authelia only) and it is a shell
+    - {name: monitoring, flags: ""} # Loki + Prometheus: only Traefik, Grafana, Alloy and Homepage reach them
+  register: core_stacks_net
+  changed_when: core_stacks_net.rc == 0
+  failed_when: core_stacks_net.rc != 0 and 'already exists' not in core_stacks_net.stderr
+  when: "'traefik' in core_stacks_names" # docker-apps only
+
+- name: Folders | stacks, secrets (root only), app data
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: /opt/stacks, mode: "0755"}
+    - {path: /opt/secrets, mode: "0700"}
+    - {path: /opt/appdata, mode: "0755"}
+    - {path: /opt/appdata/authelia, mode: "0700", app: authelia}
+    - {path: /opt/appdata/traefik, mode: "0700", app: traefik}
+  when: item.app is not defined or item.app in core_stacks_names
+
+- name: Stacks | files from the repo
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../stacks/{{ item }}/"
+    dest: "/opt/stacks/{{ item }}/"
+    mode: preserve
+  loop: "{{ core_stacks_names }}"
+  register: core_stacks_files
+
+# Same `$` escaping as the secret env files (secrets.yml).
+- name: Stacks | non-secret settings (.env next to compose.yml, homelab_stack_env)
+  ansible.builtin.copy:
+    dest: "/opt/stacks/{{ item }}/.env"
+    content: "{% for k, v in homelab_stack_env | dictsort %}{{ k }}={{ v | replace('$', '$$') }}\n{% endfor %}"
+    mode: "0644"
+  loop: "{{ core_stacks_names }}"
+  register: core_stacks_env
+
+- name: Secrets | rendered from Proton Pass
+  ansible.builtin.import_tasks: secrets.yml
+
+# Hawser serves TLS with a key made here, once (it never leaves the host); Dockhand trusts exactly this
+# certificate (public; read back below for dockhand_config), so the token never crosses the LAN in clear.
+- name: Hawser | TLS key and certificate for this host's IP
+  when: "'hawser' in core_stacks_names"
+  block:
+    - name: Hawser | create once
+      ansible.builtin.command: >-
+        openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj /CN={{ inventory_hostname }}
+        -addext subjectAltName=IP:{{ ansible_host }}
+        -keyout /opt/secrets/hawser_key.pem -out /opt/secrets/hawser_cert.pem
+      args:
+        creates: /opt/secrets/hawser_key.pem
+      register: core_stacks_hawser_tls
+
+    - name: Hawser | certificate for Dockhand
+      ansible.builtin.slurp:
+        src: /opt/secrets/hawser_cert.pem
+      register: core_stacks_hawser_cert_file
+      check_mode: false
+      failed_when: false # not there yet in a first check-mode run
+
+    - name: Hawser | remember it
+      ansible.builtin.set_fact:
+        core_stacks_hawser_cert: "{{ core_stacks_hawser_cert_file.content | default('') | b64decode }}"
+
+- name: Authelia | users and OIDC secrets (where Authelia runs)
+  when: "'authelia' in core_stacks_names"
+  block:
+    - name: Authelia | user file
+      ansible.builtin.import_tasks: authelia_user.yml
+
+    - name: Authelia | OIDC helper script
+      ansible.builtin.copy:
+        src: authelia-oidc-secrets
+        dest: /usr/local/sbin/authelia-oidc-secrets
+        mode: "0700"
+
+    # Generated on the host, once; they never pass through Ansible's output or argv.
+    - name: Authelia | OIDC secrets (HMAC, signing key, one secret per client)
+      ansible.builtin.command:
+        argv: "{{ ['/usr/local/sbin/authelia-oidc-secrets', '/opt/appdata/authelia/oidc'] + core_stacks_oidc_clients }}"
+      register: core_stacks_oidc
+      changed_when: "'created' in core_stacks_oidc.stdout"
+
+    # For apps that read their client secret from an env var: /opt/secrets/oidc-<client>.env, written on the
+    # host (the secret never passes through Ansible). Characters of token_urlsafe need no escaping.
+    - name: Authelia | OIDC client secrets as env files
+      ansible.builtin.shell: |
+        set -eu
+        new="{{ item.value }}=$(cat /opt/appdata/authelia/oidc/{{ item.key }}.secret)"
+        [ "$(cat /opt/secrets/oidc-{{ item.key }}.env 2>/dev/null)" = "$new" ] && exit 0
+        (umask 077 && printf '%s\n' "$new" > /opt/secrets/oidc-{{ item.key }}.env)
+        echo changed
+      loop: "{{ core_stacks_oidc_env | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      register: core_stacks_oidc_env_result
+      changed_when: "'changed' in core_stacks_oidc_env_result.stdout"
+      when: not ansible_check_mode
+
+- name: Stacks | which stacks changed (files, settings, secrets, Authelia user)
+  ansible.builtin.set_fact: # noqa: jinja[invalid] (uses results registered above; lint can't know them)
+    core_stacks_touched: "{{ ([core_stacks_files, core_stacks_env] | map(attribute='results') | flatten | selectattr('changed') | map(attribute='item') | list) + (core_stacks_secrets_tpl_result.results | selectattr('changed') | map(attribute='item.item') | map('dirname') | map('dirname') | map('basename') | list) + (core_stacks_secrets_result.results | selectattr('changed') | map(attribute='item.key') | map('dirname') | list) + (['authelia'] if core_stacks_authelia_file is changed or core_stacks_oidc is changed else []) + (['hawser'] if core_stacks_hawser_tls is changed else []) }}"
+
+- name: Stacks | up (force-recreated when one of the above changed)
+  ansible.builtin.command: >-
+    docker compose up -d --remove-orphans
+    {{ '--force-recreate' if item in core_stacks_touched else '' }}
+  args:
+    chdir: "/opt/stacks/{{ item }}"
+  loop: "{{ core_stacks_names }}"
+  register: core_stacks_up
+  changed_when: core_stacks_up.stderr is search('Started|Recreated|Created')
+  when: not ansible_check_mode
