@@ -1,0 +1,25 @@
+# Single sign-on in front of the apps (Traefik forward-auth) and OIDC provider.
+name: authelia
+services:
+  authelia:
+    image: authelia/authelia:4.39.28@sha256:bd97cff4fcbf715b5ff1f9ae286afbe6033afce385302520b0368122d43a6f54
+    container_name: authelia
+    restart: unless-stopped
+    env_file:
+      - path: /opt/secrets/authelia.env # JWT, session and storage-encryption secrets
+        required: false
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is set in the stack's .env}
+      X_AUTHELIA_CONFIG_FILTERS: template # lets configuration.yml read DOMAIN
+    volumes:
+      - ./configuration.yml:/config/configuration.yml:ro
+      - /opt/appdata/authelia:/data # users.yml (written by Ansible), sqlite DB, notifications
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.authelia.rule: Host(`auth.${DOMAIN}`)
+      traefik.http.services.authelia.loadbalancer.server.port: "9091"
+
+networks:
+  proxy:
+    external: true

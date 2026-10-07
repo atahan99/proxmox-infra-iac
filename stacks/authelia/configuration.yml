@@ -1,0 +1,70 @@
+# No secrets here: they come from /opt/secrets/authelia.env (AUTHELIA_* variables) and, for OIDC,
+# from files Ansible generates on the host (/opt/appdata/authelia/oidc = /data/oidc).
+server:
+  address: tcp://:9091
+log:
+  level: info
+theme: auto
+totp:
+  issuer: '{{ env "DOMAIN" }}'
+authentication_backend:
+  file:
+    path: /data/users.yml
+    password:
+      algorithm: argon2
+access_control:
+  default_policy: two_factor
+session:
+  cookies:
+    - domain: '{{ env "DOMAIN" }}'
+      authelia_url: 'https://auth.{{ env "DOMAIN" }}'
+      default_redirection_url: 'https://homepage.{{ env "DOMAIN" }}'
+storage:
+  local:
+    path: /data/db.sqlite3
+notifier:
+  # Single user: one-time links (2FA setup, resets) are written here; read them with
+  # `docker exec authelia cat /data/notification.txt`.
+  filesystem:
+    filename: /data/notification.txt
+identity_providers:
+  oidc:
+    hmac_secret: '{{ secret "/data/oidc/hmac" }}'
+    jwks:
+      # Authelia template: the PEM key as an indented block
+      # yamllint disable-line rule:braces
+      - key: {{ secret "/data/oidc/jwks.pem" | mindent 10 "|" | msquote }}
+    # One login for the apps that speak OIDC (the rest sit behind the forward-auth middleware).
+    clients:
+      - client_id: dockhand
+        client_name: Dockhand
+        client_secret: '{{ secret "/data/oidc/dockhand.digest" }}'
+        public: false
+        authorization_policy: two_factor
+        consent_mode: implicit # first-party app: no "allow Dockhand?" screen
+        token_endpoint_auth_method: client_secret_post
+        redirect_uris:
+          - 'https://dockhand.{{ env "DOMAIN" }}/api/auth/oidc/callback'
+        scopes: [openid, profile, email, groups]
+      - client_id: grafana
+        client_name: Grafana
+        client_secret: '{{ secret "/data/oidc/grafana.digest" }}'
+        public: false
+        authorization_policy: two_factor
+        consent_mode: implicit
+        require_pkce: true
+        pkce_challenge_method: S256
+        token_endpoint_auth_method: client_secret_post
+        redirect_uris:
+          - 'https://grafana.{{ env "DOMAIN" }}/login/generic_oauth'
+        scopes: [openid, profile, email, groups]
+      - client_id: vikunja
+        client_name: Vikunja
+        client_secret: '{{ secret "/data/oidc/vikunja.digest" }}'
+        public: false
+        authorization_policy: two_factor
+        consent_mode: implicit
+        token_endpoint_auth_method: client_secret_basic
+        redirect_uris:
+          - 'https://vikunja.{{ env "DOMAIN" }}/auth/openid/authelia'
+        scopes: [openid, profile, email]
