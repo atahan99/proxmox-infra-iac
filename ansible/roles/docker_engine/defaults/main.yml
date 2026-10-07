@@ -1,0 +1,4 @@
+# Same file for Debian and Ubuntu.
+docker_engine_keyring_sha256: 1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570
+# Daemon-wide: no container gains privileges through setuid binaries. Kasm turns it off (workspaces may use sudo).
+docker_engine_no_new_privileges: true
