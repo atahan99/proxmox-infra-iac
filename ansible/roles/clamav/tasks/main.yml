@@ -1,0 +1,123 @@
+- name: Packages | clamscan + freshclam (no clamd daemon)
+  ansible.builtin.apt:
+    name: [clamav, clamav-freshclam, curl]
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Signatures | update interval
+  ansible.builtin.lineinfile:
+    path: /etc/clamav/freshclam.conf
+    regexp: '^Checks '
+    line: "Checks {{ clamav_freshclam_checks }}"
+  ignore_errors: "{{ ansible_check_mode }}" # the package is only simulated in check mode
+  notify: Restart freshclam
+
+- name: Signatures | freshclam running
+  ansible.builtin.systemd_service:
+    name: clamav-freshclam
+    enabled: true
+    state: started
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Scan | settings
+  ansible.builtin.copy:
+    dest: /etc/clamav-scan.conf
+    mode: "0644"
+    content: |
+      # Managed by Ansible (clamav)
+      CLAMAV_ROOT={{ clamav_root }}
+      CLAMAV_EXCLUDE="{{ clamav_exclude | join(' ') }}"
+      CLAMAV_DAYS={{ clamav_days }}
+      CLAMAV_MAX_FILESIZE={{ clamav_max_filesize }}
+      CLAMAV_MAX_SCANSIZE={{ clamav_max_scansize }}
+
+- name: Scan | ntfy sender token (root only)
+  ansible.builtin.copy:
+    dest: /etc/clamav-scan.env
+    mode: "0600"
+    content: |
+      NTFY_URL={{ clamav_ntfy_url }}
+      NTFY_TOKEN={{ clamav_ntfy_token }}
+      NTFY_RESOLVE={{ clamav_ntfy_resolve }}
+  no_log: true
+
+- name: Scan | scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/usr/local/sbin/{{ item }}"
+    mode: "0755"
+  loop: [clamav-scan, clamav-notify]
+
+- name: Scan | systemd units
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item.name }}"
+    mode: "0644"
+    content: "{{ item.content }}"
+  loop:
+    - name: clamav-scan@.service
+      content: |
+        # Managed by Ansible (clamav)
+        [Unit]
+        Description=ClamAV scan of the USB disk (%i)
+        OnFailure=clamav-notify@%n.service
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/sbin/clamav-scan %i
+        RuntimeDirectory=clamav-scan
+        RuntimeDirectoryPreserve=yes
+        # Background job: never competes with anything else on the host.
+        Nice=19
+        CPUSchedulingPolicy=idle
+        IOSchedulingClass=idle
+        CPUQuota={{ clamav_cpu_quota }}
+        MemoryMax={{ clamav_memory_max }}
+        ProtectSystem=strict
+        ProtectHome=yes
+        PrivateTmp=yes
+        NoNewPrivileges=yes
+    - name: clamav-notify@.service
+      content: |
+        # Managed by Ansible (clamav)
+        [Unit]
+        Description=ntfy alert for the failed %i
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/sbin/clamav-notify %i
+    - name: clamav-scan-nightly.timer
+      content: |
+        # Managed by Ansible (clamav)
+        [Unit]
+        Description=Nightly ClamAV scan of recently changed files
+
+        [Timer]
+        OnCalendar={{ clamav_nightly }}
+        Unit=clamav-scan@changed.service
+
+        [Install]
+        WantedBy=timers.target
+    - name: clamav-scan-weekly.timer
+      content: |
+        # Managed by Ansible (clamav)
+        [Unit]
+        Description=Weekly full ClamAV scan
+
+        [Timer]
+        OnCalendar={{ clamav_weekly }}
+        Persistent=true
+        Unit=clamav-scan@full.service
+
+        [Install]
+        WantedBy=timers.target
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Scan | timers enabled
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop: [clamav-scan-nightly.timer, clamav-scan-weekly.timer]
+  ignore_errors: "{{ ansible_check_mode }}" # the units are only simulated in check mode

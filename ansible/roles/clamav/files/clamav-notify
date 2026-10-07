@@ -1,0 +1,20 @@
+#!/bin/bash
+# Managed by Ansible (clamav). Called by clamav-notify@<unit>.service when a scan unit fails:
+# a detection (with the file names) or a scan error goes to ntfy.
+set -euo pipefail
+. /etc/clamav-scan.env # NTFY_URL, NTFY_TOKEN, NTFY_RESOLVE (lab only)
+
+unit=${1:?usage: clamav-notify <failed unit>}
+run=(_SYSTEMD_INVOCATION_ID="$(systemctl show -p InvocationID --value "$unit")") # that run's lines only
+found=$(journalctl "${run[@]}" -o cat | grep -E ': .+ FOUND$' | tail -20 || true)
+if [ -n "$found" ]; then
+  title="ClamAV: $(wc -l <<<"$found") infected file(s) on the USB disk"
+  body="$found"$'\n\nNothing was deleted. Details: journalctl -u '"$unit"' on '"$(hostname)"
+  prio=high tags=rotating_light
+else
+  title="ClamAV: scan failed on $(hostname)"
+  body="$(journalctl "${run[@]}" -n 15 -o cat)"
+  prio=default tags=warning
+fi
+curl -fsS --max-time 30 ${NTFY_RESOLVE:+--resolve "$NTFY_RESOLVE"} -H "Authorization: Bearer $NTFY_TOKEN" -H "Title: $title" \
+  -H "Priority: $prio" -H "Tags: $tags" --data-binary "$body" "$NTFY_URL" >/dev/null

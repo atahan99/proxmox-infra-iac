@@ -1,0 +1,36 @@
+#!/bin/bash
+# Managed by Ansible (clamav). Scan the USB disk with ClamAV. Report only: nothing is moved or deleted.
+#   clamav-scan changed   files modified in the last CLAMAV_DAYS days (nightly)
+#   clamav-scan full      everything (weekly)
+# Exit codes are clamscan's: 0 clean, 1 something found, 2 error. Non-zero fails the unit, which
+# triggers clamav-notify.
+set -euo pipefail
+. /etc/clamav-scan.conf # CLAMAV_ROOT, CLAMAV_EXCLUDE (space-separated, relative), CLAMAV_DAYS, CLAMAV_MAX_*
+
+mode=${1:?usage: clamav-scan changed|full}
+exec 9>/run/clamav-scan/lock
+flock 9 # the nightly and the weekly scan never run at the same time
+
+opts=(--infected --max-filesize="$CLAMAV_MAX_FILESIZE" --max-scansize="$CLAMAV_MAX_SCANSIZE")
+prune=()
+for d in $CLAMAV_EXCLUDE; do
+  opts+=(--exclude-dir="^$CLAMAV_ROOT/$d(/|\$)")
+  prune+=(-path "$CLAMAV_ROOT/$d" -o)
+done
+
+case $mode in
+  changed)
+    list=/run/clamav-scan/changed
+    find "$CLAMAV_ROOT" \( "${prune[@]}" -false \) -prune -o -type f -mtime "-$CLAMAV_DAYS" -print >"$list"
+    echo "$(wc -l <"$list") files changed in the last $CLAMAV_DAYS days"
+    [ -s "$list" ] || exit 0
+    exec clamscan "${opts[@]}" --file-list="$list"
+    ;;
+  full)
+    exec clamscan "${opts[@]}" --recursive "$CLAMAV_ROOT"
+    ;;
+  *)
+    echo "unknown mode: $mode" >&2
+    exit 2
+    ;;
+esac

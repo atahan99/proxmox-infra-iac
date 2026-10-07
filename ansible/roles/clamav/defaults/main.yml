@@ -1,0 +1,22 @@
+# ClamAV on the security LXC: scheduled, report-only scans of the USB disk, mounted read-only.
+# No clamd daemon: the signature database (~1.5 GB in RAM) is only loaded while a scan runs.
+clamav_root: /mnt/external
+# Relative to clamav_root. Not scanned: PBS data and host backups (binary chunks), Frigate recordings,
+# Immich (own photos).
+clamav_exclude: [Backups, Proxmox, FrigateNVR, Personal/Immich, lost+found]
+clamav_days: 2 # the nightly scan covers files modified in the last 2 days
+clamav_max_filesize: 100M # larger files (videos, ISOs) are skipped quickly
+clamav_max_scansize: 400M # data scanned per archive
+
+clamav_nightly: "*-*-* 03:00" # files changed recently; before the 05:00 backup slot
+clamav_weekly: "Sat 01:00" # everything; clear of the Sunday host/PBS jobs
+
+# Resource limits on the scan units (systemd)
+clamav_cpu_quota: 50% # half of one core
+clamav_memory_max: 2G
+clamav_freshclam_checks: 4 # signature updates per day
+
+# Alerts: a detection or a failed scan goes to ntfy (homelab-security), with its own sender token.
+clamav_ntfy_url: "https://ntfy.{{ homelab_domain }}/homelab-security"
+clamav_ntfy_token: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/ntfy/token_clamav') }}"
+clamav_ntfy_resolve: "" # lab: host:port:address for curl --resolve (lab names resolve to the live server)
