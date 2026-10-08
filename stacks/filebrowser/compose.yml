@@ -1,0 +1,40 @@
+# Web file manager for the USB disk (/mnt/external; same path inside as outside, so share and
+# bookmark paths match). Deliberately no /opt: that holds the app data and /opt/secrets.
+# Config in config.yaml next to this file; users in its database (database.db in
+# its data folder). Runs as uid 1000, so new files suit Samba; `filebrowser-init`
+# hands it the data folder (Docker creates it as root).
+name: filebrowser
+services:
+  filebrowser-init:
+    image: busybox:1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+    command: [chown, "1000:1000", /data]
+    volumes:
+      - /opt/appdata/filebrowser:/data
+    network_mode: none
+
+  filebrowser:
+    image: gtstef/filebrowser:1.5.8-stable@sha256:68455d4953bad8e984e1bc5d112ed1e9c918a0a04f104c13c9ece50790308894
+    container_name: filebrowser
+    restart: unless-stopped
+    depends_on:
+      filebrowser-init: {condition: service_completed_successfully}
+    env_file:
+      - path: /opt/secrets/filebrowser.env # FILEBROWSER_ADMIN_PASSWORD (only used to create the admin)
+        required: false
+    environment:
+      TZ: ${TZ}
+      FILEBROWSER_CONFIG: /config/config.yaml
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
+      - /opt/appdata/filebrowser:/home/filebrowser/data
+      - /mnt/external:/host-mnt/external
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.filebrowser.rule: Host(`filebrowser.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.filebrowser.middlewares: authelia@file
+      traefik.http.services.filebrowser.loadbalancer.server.port: "80"
+
+networks:
+  proxy:
+    external: true

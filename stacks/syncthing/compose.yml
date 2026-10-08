@@ -1,0 +1,33 @@
+# File sync. Device keys, folders and the GUI login in its config; synced folder on the USB disk (/mnt/external/Shared). Sync and local
+# discovery ports are published on the LAN. No relay: away from home,
+# devices reach this one over Tailscale.
+name: syncthing
+services:
+  syncthing:
+    image: lscr.io/linuxserver/syncthing:v2.1.6-ls231@sha256:8a381a5a11225475cc4a14ad4fee7c627fdc4fa5804fe3a34febe3aeda9f4e23
+    container_name: syncthing
+    hostname: docker-lxc-syncthing # the device name other devices know
+    restart: unless-stopped
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${TZ}
+    volumes:
+      - /opt/appdata/syncthing:/config
+      - /mnt/external/Shared:/shared
+    ports:
+      - "22000:22000/tcp" # sync
+      - "22000:22000/udp" # sync (QUIC)
+      - "21027:21027/udp" # local discovery
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.syncthing.rule: Host(`syncthing.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.syncthing.middlewares: authelia@file
+      traefik.http.services.syncthing.loadbalancer.server.port: "8384"
+      # The GUI refuses unknown Host headers; the container's own address passes its check.
+      traefik.http.services.syncthing.loadbalancer.passhostheader: "false"
+
+networks:
+  proxy:
+    external: true
