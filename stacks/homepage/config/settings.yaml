@@ -1,0 +1,74 @@
+title: Homelab
+background: https://images.unsplash.com/photo-1485470733090-0aae1788d5af?q=80&w=2117&auto=format&fit=crop
+showStats: true
+statusStyle: basic
+disableCollapse: true
+useEqualHeights: true
+theme: dark
+hideVersion: true
+headerStyle: boxedWidgets
+color: slate
+cardBlur: sm
+
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: true
+  showSearchSuggestions: true
+  hideVisitURL: true
+
+layout:
+  Media:
+    tab: Home
+    icon: mdi-play-box-multiple-#ffffff
+    style: row
+    columns: 3
+  Smart Home:
+    tab: Home
+    icon: mdi-home-automation-#ffffff
+    style: row
+    columns: 2
+  Daily:
+    tab: Home
+    icon: mdi-calendar-check-#ffffff
+    style: row
+    columns: 4
+  Files:
+    tab: Tools
+    icon: mdi-folder-multiple-#ffffff
+    style: row
+    columns: 4
+  Remote:
+    tab: Tools
+    icon: mdi-remote-desktop-#ffffff
+    style: row
+    columns: 4
+  Downloads:
+    tab: Tools
+    icon: mdi-download-#ffffff
+    style: row
+    columns: 2
+  Platform:
+    tab: Infrastructure
+    icon: mdi-server-#ffffff
+    style: row
+    columns: 4
+  Access:
+    tab: Infrastructure
+    icon: mdi-shield-key-#ffffff
+    style: row
+    columns: 4
+  Network:
+    tab: Infrastructure
+    icon: mdi-lan-#ffffff
+    style: row
+    columns: 4
+  Health:
+    tab: Monitoring
+    icon: mdi-heart-pulse-#ffffff
+    style: row
+    columns: 4
+  Alerts & Checks:
+    tab: Monitoring
+    icon: mdi-bell-ring-#ffffff
+    style: row
+    columns: 4

@@ -1,0 +1,47 @@
+# Start page. Config in config/ (read-only), secrets as HOMEPAGE_VAR_* from secrets/homepage.env.tpl
+# (Proton Pass). Widgets reach the apps directly on the proxy network or by IP (see config/services.yaml).
+name: homepage
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:v2.4.0@sha256:643bd0be730d40f69d58028a55d1a896739333e8815786df42bc97f109ecbe61
+    container_name: homepage
+    restart: unless-stopped
+    env_file:
+      - path: /opt/secrets/homepage.env # HOMEPAGE_VAR_* (API keys and logins of the widgets)
+        required: false
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: homepage.${DOMAIN:?DOMAIN is set in the stack's .env}
+      HOMEPAGE_VAR_DOMAIN: ${DOMAIN}
+      # Site values for config/*.yaml (Homepage only substitutes HOMEPAGE_VAR_*)
+      HOMEPAGE_VAR_TZ: ${TZ}
+      HOMEPAGE_VAR_LATITUDE: ${LATITUDE}
+      HOMEPAGE_VAR_LONGITUDE: ${LONGITUDE}
+      HOMEPAGE_VAR_GATEWAY_IP: ${GATEWAY_IP}
+      HOMEPAGE_VAR_MODEM_IP: ${MODEM_IP}
+      HOMEPAGE_VAR_SWITCH_IP: ${SWITCH_IP}
+      HOMEPAGE_VAR_AP1_IP: ${AP1_IP}
+      HOMEPAGE_VAR_AP2_IP: ${AP2_IP}
+      HOMEPAGE_VAR_PVE_IP: ${PVE_IP}
+      HOMEPAGE_VAR_PBS_IP: ${PBS_IP}
+      HOMEPAGE_VAR_ADGUARD_IP: ${ADGUARD_IP}
+      HOMEPAGE_VAR_RPI3_IP: ${RPI3_IP}
+      HOMEPAGE_VAR_HA_IP: ${HA_IP}
+      HOMEPAGE_VAR_PLEX_IP: ${PLEX_IP}
+      HOMEPAGE_VAR_KASM_IP: ${KASM_IP}
+      HOMEPAGE_VAR_PIKVM_IP: ${PIKVM_IP}
+      HOMEPAGE_VAR_DOCKER_HW_IP: ${DOCKER_HW_IP}
+      LOG_TARGETS: stdout # config/ is read-only
+    volumes:
+      - ./config:/app/config:ro
+    networks: [proxy, monitoring] # monitoring: the Prometheus widget
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.homepage.rule: Host(`homepage.${DOMAIN}`)
+      traefik.http.routers.homepage.middlewares: authelia@file
+      traefik.http.services.homepage.loadbalancer.server.port: "3000"
+
+networks:
+  proxy:
+    external: true
+  monitoring:
+    external: true

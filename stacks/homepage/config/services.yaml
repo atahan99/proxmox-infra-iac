@@ -1,0 +1,401 @@
+# Links go through Traefik (https://<name>.<domain>, Authelia login); widgets
+# talk to the apps directly (container names on the proxy network, IPs for the other hosts), since
+# Authelia would block their API calls. Secrets: {{HOMEPAGE_VAR_*}}, from secrets/homepage.env.tpl.
+# No go2rtc entry: its API is not published (Frigate shows the streams).
+
+- Media:
+    - Plex:
+        icon: plex.png
+        href: https://plex.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://{{HOMEPAGE_VAR_PLEX_IP}}:32400/identity
+        description: media server
+        widget:
+          type: plex
+          url: http://{{HOMEPAGE_VAR_PLEX_IP}}:32400
+          key: "{{HOMEPAGE_VAR_PLEX_TOKEN}}"
+
+    - Immich:
+        icon: immich.png
+        href: https://immich.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://{{HOMEPAGE_VAR_DOCKER_HW_IP}}:2283
+        description: Photo Library
+        widget:
+          type: immich
+          version: 2
+          url: http://{{HOMEPAGE_VAR_DOCKER_HW_IP}}:2283
+          key: "{{HOMEPAGE_VAR_IMMICH_KEY}}"
+
+    - Calibre-Web:
+        icon: calibre-web-automated
+        href: https://books.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://calibre-web:8083
+        description: Ebooks, send to Kindle
+
+- Smart Home:
+    - Home Assistant:
+        icon: home-assistant.svg
+        href: https://homeassistant.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://{{HOMEPAGE_VAR_HA_IP}}:8123
+        description: SmartHome Management
+        widget:
+          type: homeassistant
+          url: http://{{HOMEPAGE_VAR_HA_IP}}:8123
+          key: "{{HOMEPAGE_VAR_HOMEASSISTANT_TOKEN}}"
+
+    - Frigate:
+        icon: frigate.png
+        href: https://frigate.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://{{HOMEPAGE_VAR_DOCKER_HW_IP}}:8971
+        description: Local NVR
+        widget:
+          type: frigate
+          url: http://{{HOMEPAGE_VAR_DOCKER_HW_IP}}:8971 # Frigate's authenticated port
+          username: "{{HOMEPAGE_VAR_FRIGATE_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_FRIGATE_PASSWORD}}"
+          enableRecentEvents: true
+
+- Daily:
+    - FreshRSS:
+        icon: freshrss
+        href: https://freshrss.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://freshrss
+        description: RSS reader
+        widget:
+          type: freshrss
+          url: http://freshrss
+          username: "{{HOMEPAGE_VAR_FRESHRSS_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_FRESHRSS_PASSWORD}}"
+
+    - Mealie:
+        icon: mealie.png
+        href: https://mealie.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://mealie:9000
+        description: Meal Recipes
+        widget:
+          type: mealie
+          version: 2
+          url: http://mealie:9000
+          key: "{{HOMEPAGE_VAR_MEALIE_KEY}}"
+
+    - Vikunja:
+        icon: vikunja.png
+        href: https://vikunja.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://vikunja:3456
+        description: To-do lists # widget once Vikunja runs and has a token
+
+    - Memos:
+        icon: memos.png
+        href: https://memos.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://memos:5230
+        description: Notes
+
+    - Linkding:
+        icon: linkding.png
+        href: https://linkding.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Bookmarks
+
+    - SearXNG:
+        icon: searxng
+        href: https://searxng.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://searxng:8080
+        description: Search without being tracked
+
+    - Wallos:
+        icon: wallos.png
+        href: https://wallos.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://wallos
+        description: subscription tracker
+
+- Files:
+    - File Browser:
+        icon: filebrowser-quantum.png
+        href: https://filebrowser.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://filebrowser
+        description: Files
+
+    - Syncthing:
+        icon: syncthing.png
+        href: https://syncthing.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://syncthing:8384
+        description: File sync
+
+    - ConvertX:
+        icon: convertx.png
+        href: https://convertx.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://convertx:3000
+        description: media converter
+
+    - Stirling-PDF:
+        icon: stirling-pdf.png
+        href: https://stirling-pdf.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://stirling-pdf:8080
+        description: PDF tools
+
+    - ExcaliDraw:
+        icon: excalidraw.png
+        href: https://excalidraw.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://excalidraw
+        description: whiteboard
+
+- Remote:
+    - Kasm:
+        icon: kasm.png
+        href: https://kasm.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: https://{{HOMEPAGE_VAR_KASM_IP}}
+        description: App Streaming & Browser Testing
+
+    - PiKVM:
+        icon: https://avatars.githubusercontent.com/u/41749659?s=200&v=4
+        href: https://pikvm.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: https://{{HOMEPAGE_VAR_PIKVM_IP}}
+        description: remote kvm
+
+    - RustDesk:
+        icon: rustdesk.png
+        description: Remote desktop relay (clients connect directly, no web UI)
+
+    - CodeServer:
+        icon: coder.png
+        href: https://code-server.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Code Server
+
+- Downloads:
+    - qBittorrent:
+        icon: qbittorrent
+        href: https://qbittorrent.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://gluetun:8080
+        description: Linux ISOs DUH!!
+        widget:
+          type: qbittorrent
+          url: http://gluetun:8080 # qBittorrent lives in gluetun's network
+          username: "{{HOMEPAGE_VAR_QBITTORRENT_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_QBITTORRENT_PASSWORD}}"
+
+    - MeTube:
+        icon: metube
+        href: https://metube.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://metube:8081
+        description: Downloader for videos
+
+- Platform:
+    - Proxmox:
+        icon: proxmox.svg
+        href: https://proxmox.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: https://{{HOMEPAGE_VAR_PVE_IP}}:8006
+        description: Proxmox VE
+        widget:
+          type: proxmox
+          url: https://{{HOMEPAGE_VAR_PVE_IP}}:8006
+          username: monitoring@pve!homepage
+          password: "{{HOMEPAGE_VAR_PROXMOX_TOKEN}}"
+
+    - PBS:
+        icon: proxmox.svg
+        href: https://pbs.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: https://{{HOMEPAGE_VAR_PBS_IP}}:8007
+        description: Proxmox Backup Server
+        widget:
+          type: proxmoxbackupserver
+          url: https://{{HOMEPAGE_VAR_PBS_IP}}:8007
+          username: "{{HOMEPAGE_VAR_PBS_TOKEN_ID}}"
+          password: "{{HOMEPAGE_VAR_PBS_TOKEN}}"
+
+    - Dockhand:
+        icon: docker.svg
+        href: https://dockhand.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Docker management (git stacks)
+
+    - Forgejo:
+        icon: forgejo.svg
+        href: https://forgejo.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Local GitHub mirror # Homepage widget type gitea works with Forgejo (needs a token)
+
+- Access:
+    - Traefik:
+        icon: traefik.svg
+        href: https://traefik.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://traefik:8080/ping
+        description: Reverse proxy and certificates
+
+    - Authelia:
+        icon: authelia.svg
+        href: https://auth.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://authelia:9091/api/health
+        description: Single sign-on
+
+    - Tailscale:
+        icon: tailscale
+        href: https://login.tailscale.com/admin/machines
+        description: p2p VPN
+        widget:
+          type: tailscale
+          deviceid: "{{HOMEPAGE_VAR_TAILSCALE_DEVICE}}"
+          key: "{{HOMEPAGE_VAR_TAILSCALE_KEY}}"
+
+    - Gluetun:
+        icon: gluetun.png
+        siteMonitor: http://gluetun:8000/v1/vpn/status
+        description: VPN for qBittorrent and the VPN speedtest
+        widget:
+          type: gluetun
+          url: http://gluetun:8000
+          key: "{{HOMEPAGE_VAR_GLUETUN_KEY}}"
+
+- Network:
+    - OpenWRT:
+        icon: openwrt
+        href: http://{{HOMEPAGE_VAR_GATEWAY_IP}}
+        description: Very Cool Router
+
+    - ISP Modem:
+        icon: huawei
+        href: http://{{HOMEPAGE_VAR_MODEM_IP}}
+        description: ISP Gateway
+
+    - TP-Link Switch:
+        icon: tp-link
+        href: http://{{HOMEPAGE_VAR_SWITCH_IP}}
+        description: Switch WebUI
+
+    - TP-Link AP-1:
+        icon: tp-link
+        href: https://{{HOMEPAGE_VAR_AP1_IP}}
+        description: Good Wifi
+
+    - TP-Link AP-2:
+        icon: tp-link
+        href: https://{{HOMEPAGE_VAR_AP2_IP}}
+        description: Good Wifi
+
+    - AdguardHome-Primary:
+        icon: adguard-home
+        href: http://{{HOMEPAGE_VAR_ADGUARD_IP}}
+        siteMonitor: http://{{HOMEPAGE_VAR_ADGUARD_IP}}
+        description: DNS (CT 106, VIP .5)
+        widget:
+          type: adguard
+          url: http://{{HOMEPAGE_VAR_ADGUARD_IP}}
+          username: "{{HOMEPAGE_VAR_ADGUARD_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_ADGUARD_PASSWORD}}"
+
+    - AdguardHome-Backup:
+        icon: adguard-home
+        href: http://{{HOMEPAGE_VAR_RPI3_IP}}
+        siteMonitor: http://{{HOMEPAGE_VAR_RPI3_IP}}
+        description: DNS backup (RPi3)
+        widget:
+          type: adguard
+          url: http://{{HOMEPAGE_VAR_RPI3_IP}}
+          username: "{{HOMEPAGE_VAR_ADGUARD_REPLICA_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_ADGUARD_REPLICA_PASSWORD}}"
+
+- Health:
+    - Grafana:
+        icon: grafana.svg
+        href: https://grafana.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://grafana:3000/api/health
+        description: Metrics, logs and alerts
+        widget:
+          type: grafana
+          version: 2
+          url: http://grafana:3000
+          username: "{{HOMEPAGE_VAR_GRAFANA_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}"
+
+    - Prometheus:
+        icon: prometheus.svg
+        href: https://prometheus.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://prometheus:9090/-/healthy
+        description: Metrics
+        widget:
+          type: prometheus
+          url: http://prometheus:9090
+
+    - Beszel:
+        icon: beszel.png
+        href: https://beszel.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://beszel:8090
+        description: System Stats Monitor
+        widget:
+          type: beszel
+          version: 2
+          url: http://beszel:8090
+          username: "{{HOMEPAGE_VAR_BESZEL_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_BESZEL_PASSWORD}}"
+
+    - Scrutiny:
+        icon: scrutiny.png
+        href: https://scrutiny.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://scrutiny:8080/api/health
+        description: Disk health
+        widget:
+          type: scrutiny
+          url: http://scrutiny:8080
+
+    - Dozzle:
+        icon: dozzle.png
+        href: https://dozzle.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Live container logs
+
+    - Gatus:
+        icon: gatus.png
+        href: http://{{HOMEPAGE_VAR_RPI3_IP}}:8080
+        siteMonitor: http://{{HOMEPAGE_VAR_RPI3_IP}}:8080
+        description: Uptime checks from outside the server (RPi3)
+        widget:
+          type: gatus
+          url: http://{{HOMEPAGE_VAR_RPI3_IP}}:8080
+
+    - Tautulli:
+        icon: tautulli.png
+        href: https://tautulli.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://tautulli:8181
+        description: media server statistics
+        widget:
+          type: tautulli
+          url: http://tautulli:8181
+          key: "{{HOMEPAGE_VAR_TAUTULLI_KEY}}"
+          enableUser: true
+          showEpisodeNumber: true
+          expandOneStreamToTwoRows: false
+
+- Alerts & Checks:
+    - NTFY:
+        icon: ntfy.png
+        href: https://ntfy.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://ntfy/v1/health
+        description: Push Notification Server
+
+    - ChangeDetection:
+        icon: changedetection.png
+        href: https://changedetection.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://changedetection:5000
+        description: Content or Price Change Tracker
+        widget:
+          type: changedetectionio
+          url: http://changedetection:5000
+          key: "{{HOMEPAGE_VAR_CHANGEDETECTION_KEY}}"
+
+    - Speedtest:
+        icon: speedtest-tracker.png
+        href: https://speedtest.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://speedtest-tracker
+        description: Internet speed
+        widget:
+          type: speedtest
+          url: http://speedtest-tracker
+
+    - Speedtest-VPN:
+        icon: speedtest-tracker.png
+        href: https://speedtest-vpn.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://gluetun
+        description: Internet speed through the VPN
+        widget:
+          type: speedtest
+          url: http://gluetun # speedtest-vpn shares gluetun's network
+
+    - LibreSpeed:
+        icon: librespeed.png
+        href: https://librespeed.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://librespeed:8080
+        description: Local Speed Test

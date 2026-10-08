@@ -1,0 +1,16 @@
+# Host stats: Beszel, Grafana (no Glances).
+- datetime:
+    text_size: xl
+    format:
+      timeStyle: short
+      dateStyle: short
+      hour12: true
+- openmeteo:
+    label: Istanbul
+    latitude: "{{HOMEPAGE_VAR_LATITUDE}}"
+    longitude: "{{HOMEPAGE_VAR_LONGITUDE}}"
+    timezone: "{{HOMEPAGE_VAR_TZ}}"
+    units: metric
+    cache: 15
+    format:
+      maximumFractionDigits: 1
