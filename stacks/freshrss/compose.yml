@@ -1,0 +1,26 @@
+# RSS reader. Feeds, users and the API password live in its data.
+# Its API (/api, used by phone RSS apps and the Homepage widget) has its own login, so it skips Authelia.
+name: freshrss
+services:
+  freshrss:
+    image: lscr.io/linuxserver/freshrss:1.30.1@sha256:bd13d4a611959bad42bd79965d3202c518494bd775be4a0f61e4b81098b18b01
+    container_name: freshrss
+    restart: unless-stopped
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${TZ}
+    volumes:
+      - /opt/appdata/freshrss:/config
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.freshrss.rule: Host(`freshrss.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.freshrss.middlewares: authelia@file
+      traefik.http.routers.freshrss-api.rule: Host(`freshrss.${DOMAIN}`) && PathPrefix(`/api`)
+      traefik.http.routers.freshrss-api.middlewares: api-bypass@file # own login; no identity headers
+      traefik.http.services.freshrss.loadbalancer.server.port: "80"
+
+networks:
+  proxy:
+    external: true

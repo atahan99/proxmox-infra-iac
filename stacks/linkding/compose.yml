@@ -1,0 +1,32 @@
+# Bookmarks. One login: Authelia in front, and linkding trusts its Remote-User header (auth proxy
+# mode), so its only user is the Authelia user, created without a password. It must never be reachable
+# except through Traefik: no published port. The API (/api, browser extension) uses linkding's own tokens.
+name: linkding
+services:
+  linkding:
+    image: sissbruecker/linkding:1.47.0@sha256:e35cb50e0581178f245125ffaa909c565416c94c9f22ace305a7d234a4345522
+    container_name: linkding
+    restart: unless-stopped
+    env_file:
+      - path: /opt/secrets/linkding.env # LD_SUPERUSER_NAME (the Authelia username)
+        required: false
+    environment:
+      LD_ENABLE_AUTH_PROXY: "True"
+      LD_AUTH_PROXY_USERNAME_HEADER: HTTP_REMOTE_USER
+      LD_AUTH_PROXY_LOGOUT_URL: https://auth.${DOMAIN:?DOMAIN is set in the stack's .env}/logout
+      LD_CSRF_TRUSTED_ORIGINS: https://linkding.${DOMAIN}
+    volumes:
+      - /opt/appdata/linkding:/etc/linkding/data
+    networks: [linkding] # own network: only Traefik can reach it (it trusts Remote-User)
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: linkding
+      traefik.http.routers.linkding.rule: Host(`linkding.${DOMAIN}`)
+      traefik.http.routers.linkding.middlewares: authelia@file
+      traefik.http.routers.linkding-api.rule: Host(`linkding.${DOMAIN}`) && PathPrefix(`/api`)
+      traefik.http.routers.linkding-api.middlewares: api-bypass@file # own login; no identity headers
+      traefik.http.services.linkding.loadbalancer.server.port: "9090"
+
+networks:
+  linkding:
+    external: true

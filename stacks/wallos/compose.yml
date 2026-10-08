@@ -1,0 +1,23 @@
+# Subscription tracker. Database and logos in its data; point its
+# notifications at ntfy (homelab-personal) in the UI.
+name: wallos
+services:
+  wallos:
+    image: bellamy/wallos:5.8.3@sha256:0006879778f31a962a3873f7682514b92a3c7665dcbc4764fcc241ad968eaccd
+    container_name: wallos
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - /opt/appdata/wallos/db:/var/www/html/db
+      - /opt/appdata/wallos/logos:/var/www/html/images/uploads/logos
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.wallos.rule: Host(`wallos.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.wallos.middlewares: authelia@file
+      traefik.http.services.wallos.loadbalancer.server.port: "80"
+
+networks:
+  proxy:
+    external: true

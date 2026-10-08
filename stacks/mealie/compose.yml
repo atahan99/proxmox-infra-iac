@@ -1,0 +1,24 @@
+# Recipes. SQLite (Mealie's default; the database is a file in /app/data).
+# Sign-ups closed; its own login, behind Authelia.
+name: mealie
+services:
+  mealie:
+    image: ghcr.io/mealie-recipes/mealie:v3.28.0@sha256:8b02290f4d1806f02acac6f25f6d48a3c965612fda1f8e914d5af533276f8688
+    container_name: mealie
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      BASE_URL: https://mealie.${DOMAIN:?DOMAIN is set in the stack's .env}
+      ALLOW_SIGNUP: "false"
+    volumes:
+      - /opt/appdata/mealie:/app/data
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.mealie.rule: Host(`mealie.${DOMAIN}`)
+      traefik.http.routers.mealie.middlewares: authelia@file
+      traefik.http.services.mealie.loadbalancer.server.port: "9000"
+
+networks:
+  proxy:
+    external: true

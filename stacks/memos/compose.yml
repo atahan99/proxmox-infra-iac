@@ -1,0 +1,23 @@
+# Notes. The first account created becomes the admin: create it right after the first deploy, then
+# turn off sign-ups in Settings -> System. Data in /opt/appdata/memos (SQLite).
+name: memos
+services:
+  memos:
+    image: neosmemo/memos:0.31.0@sha256:24c2707ddd8fbd2ceaa7a61ecab86a53cdcde640b24ce572b73da14b00b5785f
+    container_name: memos
+    restart: unless-stopped
+    environment:
+      MEMOS_MODE: prod
+      MEMOS_PORT: "5230"
+    volumes:
+      - /opt/appdata/memos:/var/opt/memos
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.memos.rule: Host(`memos.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.memos.middlewares: authelia@file
+      traefik.http.services.memos.loadbalancer.server.port: "5230"
+
+networks:
+  proxy:
+    external: true
