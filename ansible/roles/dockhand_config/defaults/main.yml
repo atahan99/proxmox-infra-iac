@@ -1,0 +1,22 @@
+# Dockhand's setup as code, through its HTTP API (the same API its UI uses), on the host-local port.
+dockhand_config_url: http://127.0.0.1:3000
+dockhand_config_admin_user: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/dockhand/username') }}"
+dockhand_config_admin_password: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/dockhand/password') }}"
+# Fine-grained GitHub token: this repo only, Contents read-only.
+dockhand_config_github_token: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/github-dockhand/password') }}"
+# `deploy`, not main: only `make release` advances it (main pushed after CI is green), so a push to main
+# alone never reaches the hosts.
+dockhand_config_repo:
+  url: "{{ lookup('ansible.builtin.env', 'HOMELAB_GIT_URL') or undef(hint='HOMELAB_GIT_URL is not set: run through make') }}"
+  name: "{{ lookup('ansible.builtin.env', 'HOMELAB_GIT_URL') | basename | regex_replace('\\.git$', '') }}"
+  branch: deploy
+dockhand_config_sync_cron: "*/5 * * * *" # how often Dockhand checks git for changes
+
+# Git stacks on this host: folder names under stacks/. Every stack gets homelab_stack_env as env vars.
+dockhand_config_stacks: []
+
+# Other Docker hosts Dockhand manages through their Hawser agent: inventory name (= environment name); the IP
+# is their ansible_host (or `host` in the entry).
+# Token: Proton Pass hawser/<name> (or `token` in the entry); TLS: the certificate core_stacks made on that
+# host in the same run (or `tls_ca`). Their stacks: their own dockhand_config_stacks.
+dockhand_config_remotes: []

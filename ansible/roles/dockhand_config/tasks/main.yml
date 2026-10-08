@@ -1,0 +1,194 @@
+# Idempotent: every step lists what exists and only creates what is missing.
+# Dockhand starts with login off and accepts a first admin from anyone who reaches it. Here that is
+# only processes on this host (127.0.0.1) or someone already past Authelia's 2FA, and if anyone else
+# created the admin first, the login step below fails with 401 instead of passing silently.
+- name: API | wait until Dockhand answers
+  ansible.builtin.uri:
+    url: "{{ dockhand_config_url }}/api/auth/settings"
+    status_code: [200, 401] # 401 = authentication is already enabled
+  register: dockhand_config_settings
+  until: dockhand_config_settings.status in [200, 401]
+  retries: 30
+  delay: 5
+  check_mode: false
+- name: Auth | first admin, then require login (Dockhand starts with authentication off)
+  when: dockhand_config_settings.status == 200 and not dockhand_config_settings.json.authEnabled
+  block:
+    - name: Auth | admin user (allowed without login only before any admin exists)
+      ansible.builtin.uri:
+        url: "{{ dockhand_config_url }}/api/users"
+        method: POST
+        body_format: json
+        body: {username: "{{ dockhand_config_admin_user }}", password: "{{ dockhand_config_admin_password }}", displayName: Admin}
+        status_code: [200, 201]
+      no_log: true
+      changed_when: true
+
+    - name: Auth | enable
+      ansible.builtin.uri:
+        url: "{{ dockhand_config_url }}/api/auth/settings"
+        method: PUT
+        body_format: json
+        body: {authEnabled: true, defaultProvider: local}
+      changed_when: true
+- name: Auth | log in (session cookie for the calls below)
+  ansible.builtin.uri:
+    url: "{{ dockhand_config_url }}/api/auth/login"
+    method: POST
+    body_format: json
+    body: {username: "{{ dockhand_config_admin_user }}", password: "{{ dockhand_config_admin_password }}", provider: local}
+  register: dockhand_config_login
+  no_log: true
+  check_mode: false
+- name: State | environments, credentials, repositories, git stacks
+  ansible.builtin.uri:
+    url: "{{ dockhand_config_url }}/api/{{ item }}"
+    headers: {Cookie: "{{ dockhand_config_login.cookies_string }}"}
+  loop: [environments, git/credentials, git/repositories, git/stacks]
+  register: dockhand_config_state
+  check_mode: false
+  no_log: "{{ not (dockhand_config_debug | default(false) | bool) }}" # the session cookie
+- name: Environment | this host (the local Docker socket)
+  ansible.builtin.uri:
+    url: "{{ dockhand_config_url }}/api/environments"
+    method: POST
+    headers: {Cookie: "{{ dockhand_config_login.cookies_string }}"}
+    body_format: json
+    body: {name: "{{ inventory_hostname }}", connectionType: socket, socketPath: /var/run/docker.sock}
+    status_code: [200, 201]
+  when: inventory_hostname not in (dockhand_config_state.results[0].json | map(attribute='name'))
+  changed_when: true
+  no_log: "{{ not (dockhand_config_debug | default(false) | bool) }}" # the session cookie
+
+# The other Docker hosts, through their Hawser agents (standard mode: Dockhand connects to port 2376 over
+# TLS with the host's token, trusting only the certificate core_stacks made on that host). Their stacks come from their own inventory entry (dockhand_config_stacks).
+# That certificate is read in the same run, so `--limit docker-apps` fails while a remote is new: run apps.yml whole.
+- name: Environment | other hosts (Hawser agents)
+  ansible.builtin.uri:
+    url: "{{ dockhand_config_url }}/api/environments"
+    method: POST
+    headers: {Cookie: "{{ dockhand_config_login.cookies_string }}"}
+    body_format: json
+    body:
+      name: "{{ item.name }}"
+      connectionType: hawser-standard
+      host: "{{ item.host | default(hostvars[item.name].ansible_host) }}"
+      port: 2376
+      protocol: https
+      tlsCa: "{{ item.tls_ca if item.tls_ca is defined else hostvars[item.name].core_stacks_hawser_cert }}"
+      tlsSkipVerify: false
+      hawserToken: "{{ item.token if item.token is defined else lookup('pipe', 'pass-cli item view pass://Homelab/hawser/' ~ item.name) }}"
+    status_code: [200, 201]
+  loop: "{{ dockhand_config_remotes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.name not in (dockhand_config_state.results[0].json | map(attribute='name'))
+  changed_when: true
+  no_log: true # the token
+
+- name: State | environments (with the new ones)
+  ansible.builtin.uri:
+    url: "{{ dockhand_config_url }}/api/environments"
+    headers: {Cookie: "{{ dockhand_config_login.cookies_string }}"}
+  register: dockhand_config_envs
+  check_mode: false
+  no_log: "{{ not (dockhand_config_debug | default(false) | bool) }}" # the session cookie
+- name: Git | GitHub credential (read-only token)
+  ansible.builtin.uri:
+    url: "{{ dockhand_config_url }}/api/git/credentials"
+    method: POST
+    headers: {Cookie: "{{ dockhand_config_login.cookies_string }}"}
+    body_format: json
+    body: {name: github, authType: password, username: x-access-token, password: "{{ dockhand_config_github_token }}"}
+    status_code: [200, 201]
+  register: dockhand_config_cred_new
+  when: "'github' not in (dockhand_config_state.results[1].json | map(attribute='name'))"
+  no_log: true
+  changed_when: true
+- name: Git | repository
+  ansible.builtin.uri:
+    url: "{{ dockhand_config_url }}/api/git/repositories"
+    method: POST
+    headers: {Cookie: "{{ dockhand_config_login.cookies_string }}"}
+    body_format: json
+    body: "{{ dockhand_config_repo | combine({'credentialId': dockhand_config_cred_id | int}) }}"
+    status_code: [200, 201]
+  vars:
+    dockhand_config_cred_id: "{{ dockhand_config_cred_new.json.id if dockhand_config_cred_new is not skipped else (dockhand_config_state.results[1].json | selectattr('name', 'eq', 'github') | first).id }}"
+  register: dockhand_config_repo_new
+  when: dockhand_config_repo.name not in (dockhand_config_state.results[2].json | map(attribute='name'))
+  changed_when: true
+  no_log: "{{ not (dockhand_config_debug | default(false) | bool) }}" # the session cookie
+# [stack, environment] pairs: this host's stacks, plus each Hawser host's from its own inventory entry.
+- name: Git stacks | this host's
+  ansible.builtin.set_fact:
+    dockhand_config_all_stacks: "{{ dockhand_config_stacks | product([inventory_hostname]) | list }}"
+
+- name: Git stacks | each Hawser host's
+  ansible.builtin.set_fact:
+    dockhand_config_all_stacks: "{{ dockhand_config_all_stacks + (hostvars[item.name].dockhand_config_stacks | default([]) | product([item.name]) | list) }}"
+  loop: "{{ dockhand_config_remotes }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Git stacks | create and deploy the missing ones
+  ansible.builtin.uri:
+    url: "{{ dockhand_config_url }}/api/git/stacks"
+    method: POST
+    headers: {Cookie: "{{ dockhand_config_login.cookies_string }}"}
+    body_format: json
+    body:
+      stackName: "{{ item.0 }}"
+      environmentId: "{{ (dockhand_config_envs.json | selectattr('name', 'eq', item.1) | first).id | int }}"
+      repositoryId: "{{ dockhand_config_repo_id | int }}"
+      composePath: "stacks/{{ item.0 }}/compose.yml"
+      autoUpdate: true
+      autoUpdateSchedule: custom
+      autoUpdateCron: "{{ dockhand_config_sync_cron }}"
+      envVars: "{{ homelab_stack_env | dict2items(key_name='key', value_name='value') | map('combine', {'isSecret': false}) | list }}"
+      deployNow: true
+    status_code: [200, 201]
+    timeout: 600 # deployNow pulls images
+  vars:
+    dockhand_config_repo_id: "{{ dockhand_config_repo_new.json.id if dockhand_config_repo_new is not skipped else (dockhand_config_state.results[2].json | selectattr('name', 'eq', dockhand_config_repo.name) | first).id }}"
+  loop: "{{ dockhand_config_all_stacks }}"
+  loop_control:
+    label: "{{ item.1 }}/{{ item.0 }}"
+  when: item.0 not in (dockhand_config_state.results[3].json | map(attribute='stackName'))
+  changed_when: true
+  no_log: "{{ not (dockhand_config_debug | default(false) | bool) }}" # the session cookie
+# Single sign-on: Authelia as OIDC provider. With OIDC_AUTOLOGIN the login page goes straight to
+# Authelia; members of the Authelia group `admins` become Dockhand admins. The local admin above stays
+# for this role (and as the fallback: /login?local=1).
+- name: SSO | client secret (generated on the host by core_stacks)
+  ansible.builtin.slurp:
+    src: /opt/appdata/authelia/oidc/dockhand.secret
+  register: dockhand_config_oidc_secret
+  no_log: true
+- name: SSO | existing providers
+  ansible.builtin.uri:
+    url: "{{ dockhand_config_url }}/api/auth/oidc"
+    headers: {Cookie: "{{ dockhand_config_login.cookies_string }}"}
+  register: dockhand_config_oidc
+  check_mode: false
+  no_log: "{{ not (dockhand_config_debug | default(false) | bool) }}" # the session cookie
+- name: SSO | Authelia provider
+  ansible.builtin.uri:
+    url: "{{ dockhand_config_url }}/api/auth/oidc"
+    method: POST
+    headers: {Cookie: "{{ dockhand_config_login.cookies_string }}"}
+    body_format: json
+    body:
+      name: Authelia
+      enabled: true
+      issuerUrl: "https://auth.{{ core_stacks_domain }}"
+      clientId: dockhand
+      clientSecret: "{{ dockhand_config_oidc_secret.content | b64decode }}"
+      redirectUri: "https://dockhand.{{ core_stacks_domain }}/api/auth/oidc/callback"
+      scopes: openid profile email groups
+      adminClaim: groups
+      adminValue: admins
+    status_code: [200, 201]
+  when: "'Authelia' not in (dockhand_config_oidc.json | map(attribute='name'))"
+  changed_when: true
+  no_log: true

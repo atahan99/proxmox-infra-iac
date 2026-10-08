@@ -1,0 +1,27 @@
+# Dockhand's agent on docker-hw and kasm (standard mode: Dockhand on docker-apps connects to port 2376
+# over TLS with this host's token). Started by Ansible (core_stacks), since Dockhand needs it before it can
+# deploy anything here. It holds the real Docker socket: the token (Proton Pass item `hawser`, one field per
+# host) is what protects it, and TLS keeps it off the wire: the key is made on this host by core_stacks and
+# Dockhand trusts exactly that certificate. Stack files live in /opt/hawser-stacks, the same path inside and out, so relative
+# bind mounts (Frigate's ./config.yaml) work.
+name: hawser
+services:
+  hawser:
+    image: ghcr.io/finsys/hawser:0.2.50@sha256:a612335ba17f1ad06304faa3df3b340f086bbc5c57f44ddaea4a79db9b13a3ef
+    container_name: hawser
+    restart: unless-stopped
+    env_file:
+      - path: /opt/secrets/hawser.env # TOKEN
+        required: false
+    environment:
+      STACKS_DIR: /opt/hawser-stacks
+      TLS_CERT: /certs/hawser_cert.pem
+      TLS_KEY: /certs/hawser_key.pem
+    volumes:
+      - /opt/secrets/hawser_cert.pem:/certs/hawser_cert.pem:ro
+      - /opt/secrets/hawser_key.pem:/certs/hawser_key.pem:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/hawser-stacks:/opt/hawser-stacks
+      - /opt/secrets:/opt/secrets:ro # compose reads the stacks' env_file here, inside this container
+    ports:
+      - "2376:2376"

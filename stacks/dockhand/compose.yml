@@ -1,0 +1,31 @@
+# Container manager: deploys the git stacks, manages docker-hw and kasm through Hawser.
+# Its data folder holds the database AND .encryption_key (needed to decrypt stored credentials).
+name: dockhand
+services:
+  dockhand:
+    image: fnsys/dockhand:v1.0.51@sha256:ffba7083c8d28ae7afdc3c30e89ee03d43fa6ee99c335ee25e8cfab8b767f431
+    container_name: dockhand
+    restart: unless-stopped
+    environment:
+      DATA_DIR: /opt/dockhand
+      # Straight to Authelia (OIDC, set up by dockhand_config); /login?local=1 still shows the form.
+      OIDC_AUTOLOGIN: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # manages this host: the real socket
+      - /opt/dockhand:/opt/dockhand # same path inside and out, so stacks' relative paths work
+      - /opt/secrets:/opt/secrets:ro # compose reads the stacks' env_file here, inside this container
+    # Its own network, shared only with Traefik: app containers on `proxy` can't reach it, so its
+    # API (and with it the Docker socket) is only reachable through Traefik + Authelia.
+    networks: [dockhand]
+    ports:
+      - 127.0.0.1:3000:3000 # host-local only: Ansible (dockhand_config) configures it through its API
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: dockhand
+      traefik.http.routers.dockhand.rule: Host(`dockhand.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.dockhand.middlewares: authelia@file
+      traefik.http.services.dockhand.loadbalancer.server.port: "3000"
+
+networks:
+  dockhand:
+    external: true
