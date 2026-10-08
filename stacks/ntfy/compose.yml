@@ -1,0 +1,51 @@
+# Push notifications for the whole homelab (docs/architecture.md#notifications), on the phone over
+# Tailscale. Login required for everything. Users, access and tokens are declared here and in Proton Pass,
+# not clicked together: ntfy writes them into its auth database at every start.
+# - the phone's user (Proton Pass `ntfy`), admin: reads every topic;
+# - `alerts`: write-only on homelab-*, one token per sender (Grafana, Scrutiny, ...), so one can be revoked
+#   alone. A new sender = a new field in the `ntfy` item + a line in secrets/ntfy.env.tpl.
+# The users' password hashes are computed by Ansible (core_stacks_secrets, ntfy/ntfy-users.env).
+name: ntfy
+services:
+  ntfy:
+    image: binwiederhier/ntfy:v2.28.0@sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da
+    container_name: ntfy
+    restart: unless-stopped
+    command: [serve]
+    env_file:
+      - path: /opt/secrets/ntfy-users.env # NTFY_AUTH_USERS
+        required: false
+      - path: /opt/secrets/ntfy.env # NTFY_AUTH_TOKENS
+        required: false
+    environment:
+      TZ: ${TZ}
+      NTFY_BASE_URL: https://ntfy.${DOMAIN:?DOMAIN is set in the stack's .env}
+      NTFY_LISTEN_HTTP: ":80"
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
+      NTFY_ATTACHMENT_CACHE_DIR: /var/lib/ntfy/attachments
+      NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
+      NTFY_TEMPLATE_DIR: /etc/ntfy/templates # templates/: message formats for senders (Grafana)
+      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+      NTFY_AUTH_ACCESS: alerts:homelab-*:write-only
+      NTFY_ENABLE_LOGIN: "true"
+    volumes:
+      - /opt/appdata/ntfy:/var/lib/ntfy
+      - ./templates:/etc/ntfy/templates:ro
+    healthcheck:
+      test: [CMD-SHELL, "wget -q --tries=1 http://localhost:80/v1/health -O - | grep -q '\"healthy\":true'"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks: [proxy]
+    # No Authelia: the phone app logs in to ntfy itself. Still LAN + Tailscale only.
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.ntfy.rule: Host(`ntfy.${DOMAIN}`)
+      traefik.http.routers.ntfy.middlewares: lan-tailscale@file
+      traefik.http.services.ntfy.loadbalancer.server.port: "80"
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,14 @@
+# ntfy's built-in `grafana` template, plus a priority: critical alerts 5 (overrides Do Not Disturb),
+# others 3, resolved 2. Used by Grafana's contact points (?template=grafana-homelab).
+title: |
+  {{- if eq .status "firing" }}
+  🚨 {{ .title | default "Alert firing" }}
+  {{- else if eq .status "resolved" }}
+  ✅ {{ .title | default "Alert resolved" }}
+  {{- else }}
+  ⚠️ Unknown alert: {{ .title | default "Alert" }}
+  {{- end }}
+message: |
+  {{ .message | trunc 2000 }}
+priority: |
+  {{- if ne .status "firing" }}2{{ else if eq (.commonLabels.severity | default "") "critical" }}5{{ else }}3{{ end }}
