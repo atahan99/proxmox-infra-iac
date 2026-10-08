@@ -1,0 +1,103 @@
+# qBittorrent and a VPN speedtest, with all their traffic through ProtonVPN (gluetun's built-in
+# provider: only the WireGuard private key is needed; it picks a Swiss port-forwarding server itself and
+# moves to another one if that server goes away). Both apps share gluetun's network: no VPN, no traffic.
+# Secrets, one file per container so each sees only its own, all in /opt/secrets/ and rendered by Ansible
+# (core_stacks role) from Proton Pass: the templates in secrets/ (WireGuard key, gluetun's read-only API
+# key, speedtest's APP_KEY and admin login) and vpn-services-qbittorrent.env (WebUI login as a hash,
+# computed in core_stacks' defaults). Changing one needs a redeploy in Dockhand. Nothing to set up by hand.
+name: vpn-services
+services:
+  gluetun:
+    image: qmcgaw/gluetun:v3.41.3@sha256:fa19cc76b2af13d57a8d3dc3066f2ada061b1c761b8aecf989b3877c0486e027
+    container_name: gluetun
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    devices: [/dev/net/tun:/dev/net/tun] # passed into the LXC by lxc_devices (dev0)
+    env_file:
+      - path: /opt/secrets/vpn-services.env
+        required: false
+    environment:
+      TZ: ${TZ}
+      VPN_SERVICE_PROVIDER: protonvpn
+      VPN_TYPE: wireguard
+      SERVER_COUNTRIES: Switzerland
+      PORT_FORWARD_ONLY: "on"
+      VPN_PORT_FORWARDING: "on"
+      # Proton's forwarded port changes on reconnect: hand it to qBittorrent each time (no login needed
+      # from localhost: qbittorrent-init.sh).
+      VPN_PORT_FORWARDING_UP_COMMAND: >-
+        /bin/sh -c 'wget -O- -nv --retry-connrefused --post-data
+        "json={\"listen_port\":{{PORT}},\"current_network_interface\":\"{{VPN_INTERFACE}}\",\"random_port\":false,\"upnp\":false}"
+        http://127.0.0.1:8080/api/v2/app/setPreferences'
+      VPN_PORT_FORWARDING_DOWN_COMMAND: >-
+        /bin/sh -c 'wget -O- -nv --retry-connrefused --post-data
+        "json={\"listen_port\":0,\"current_network_interface\":\"lo\"}"
+        http://127.0.0.1:8080/api/v2/app/setPreferences'
+    volumes:
+      - /opt/appdata/vpn-services/gluetun:/gluetun # server list cache
+      # Control server (:8000, unpublished): one read-only API key (public IP, forwarded port, VPN
+      # status) for a status widget, e.g. Homepage at http://gluetun:8000; every other route is denied.
+      - /opt/secrets/vpn-services-gluetun-auth.toml:/gluetun/auth/config.toml:ro
+    networks: [proxy]
+    # The apps below use this container's network, so their Traefik routes live here.
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.qbittorrent.rule: Host(`qbittorrent.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.qbittorrent.middlewares: authelia@file
+      traefik.http.routers.qbittorrent.service: qbittorrent
+      traefik.http.services.qbittorrent.loadbalancer.server.port: "8080"
+      traefik.http.routers.speedtest-vpn.rule: Host(`speedtest-vpn.${DOMAIN}`)
+      traefik.http.routers.speedtest-vpn.middlewares: authelia@file
+      traefik.http.routers.speedtest-vpn.service: speedtest-vpn
+      traefik.http.services.speedtest-vpn.loadbalancer.server.port: "80"
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:5.2.4@sha256:b522f9f4b769f8f36d49d22d5eb6a92e9aa18904c6a1830b1439df511ec21983
+    container_name: qbittorrent
+    restart: unless-stopped
+    network_mode: service:gluetun
+    depends_on:
+      gluetun: {condition: service_healthy, restart: true}
+    env_file:
+      - path: /opt/secrets/vpn-services-qbittorrent.env # QBT_WEBUI_USERNAME, QBT_WEBUI_PASSWORD_PBKDF2
+        required: false
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${TZ}
+      UMASK: "022"
+      WEBUI_PORT: "8080"
+    volumes:
+      - /opt/appdata/vpn-services/qbittorrent:/config
+      - ./qbittorrent-init.sh:/custom-cont-init.d/10-webui-auth.sh:ro
+      - /mnt/external/Torrents:/downloads
+      - /mnt/external/Movies:/movies
+
+  speedtest-vpn:
+    image: lscr.io/linuxserver/speedtest-tracker:1.15.0@sha256:3f8a2d06703bde3a6d04dcc8178fcd6251b601ce3b8b52958779d5335b5719d1
+    container_name: speedtest-vpn
+    restart: unless-stopped
+    network_mode: service:gluetun
+    depends_on:
+      gluetun: {condition: service_healthy, restart: true}
+    env_file:
+      - path: /opt/secrets/vpn-services-speedtest.env # APP_KEY, ADMIN_EMAIL, ADMIN_PASSWORD
+        required: false
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${TZ}
+      # Initial admin, created on first start (the image's default is admin@example.com / password).
+      ADMIN_NAME: Admin
+      APP_URL: https://speedtest-vpn.${DOMAIN}
+      ASSET_URL: https://speedtest-vpn.${DOMAIN}
+      APP_TIMEZONE: ${TZ}
+      DISPLAY_TIMEZONE: ${TZ}
+      DB_CONNECTION: sqlite
+      SPEEDTEST_SCHEDULE: "0 0 * * *" # daily at midnight
+    volumes:
+      - /opt/appdata/vpn-services/speedtest:/config
+
+networks:
+  proxy:
+    external: true

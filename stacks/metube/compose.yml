@@ -1,0 +1,25 @@
+# Video downloader (yt-dlp). Files land on the USB disk (/mnt/external/Downloads) as uid 1000, so the
+# Samba share can read them; its queue and history live there too (.metube). No login of its own:
+# Authelia in front.
+name: metube
+services:
+  metube:
+    image: ghcr.io/alexta69/metube:2026.09.29@sha256:8e2fe9beeefc55a02f6e1d04cad0fc3c22e8f067d309188f016551dc99ec27b3
+    container_name: metube
+    restart: unless-stopped
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      UMASK: "022"
+    volumes:
+      - /mnt/external/Downloads:/downloads
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.metube.rule: Host(`metube.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.metube.middlewares: authelia@file
+      traefik.http.services.metube.loadbalancer.server.port: "8081"
+
+networks:
+  proxy:
+    external: true

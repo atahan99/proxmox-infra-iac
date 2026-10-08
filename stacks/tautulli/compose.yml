@@ -1,0 +1,23 @@
+# Plex statistics. Settings (Plex connection, API key, notifications) live in its data.
+name: tautulli
+services:
+  tautulli:
+    image: ghcr.io/tautulli/tautulli:v2.18.2@sha256:1b5875fe3193d450a62e7b438eb6701195c841f14f3dcb962e545eda42d3696f
+    container_name: tautulli
+    restart: unless-stopped
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${TZ}
+    volumes:
+      - /opt/appdata/tautulli:/config
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.tautulli.rule: Host(`tautulli.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.tautulli.middlewares: authelia@file
+      traefik.http.services.tautulli.loadbalancer.server.port: "8181"
+
+networks:
+  proxy:
+    external: true

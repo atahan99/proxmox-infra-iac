@@ -1,0 +1,27 @@
+# Ebooks for the Kindle (Calibre-Web Automated). Drop EPUB/PDF files into Books/Ingest (also via Samba):
+# they are imported into the Calibre library (Books/Calibre) and the ingest copy is deleted. Send to
+# Kindle needs SMTP set once in the admin UI. First login admin/admin123: change it.
+name: calibre-web
+services:
+  calibre-web:
+    image: crocodilestick/calibre-web-automated:v4.0.8@sha256:5e00373854247750cc3e4479b492ae09293ff5e06ed10177f226634d97888679
+    container_name: calibre-web
+    restart: unless-stopped
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${TZ}
+    volumes:
+      - /opt/appdata/calibre-web:/config
+      - /mnt/external/Books/Ingest:/cwa-book-ingest
+      - /mnt/external/Books/Calibre:/calibre-library
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.calibre-web.rule: Host(`books.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.calibre-web.middlewares: authelia@file
+      traefik.http.services.calibre-web.loadbalancer.server.port: "8083"
+
+networks:
+  proxy:
+    external: true
