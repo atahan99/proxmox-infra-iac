@@ -1,0 +1,44 @@
+# Disk health (SMART). The web app and its InfluxDB run here; the disks are on the Proxmox host, where the
+# collector runs daily (pve_host role) and posts to /api, which only the host may reach without a login.
+# Scrutiny sets up its InfluxDB (org, bucket, token) itself on first start. Failing disks: ntfy.
+name: scrutiny
+services:
+  scrutiny:
+    image: ghcr.io/analogj/scrutiny:v0.9.5-web@sha256:4f2ec0c874aec7fb0da5505b8ee127a8d7ac5b9d2b0622b53cf27fb47693877c
+    container_name: scrutiny
+    restart: unless-stopped
+    env_file:
+      - path: /opt/secrets/scrutiny.env # SCRUTINY_NOTIFY_URLS (ntfy with Scrutiny's token)
+        required: false
+    environment:
+      SCRUTINY_WEB_INFLUXDB_HOST: scrutiny-influxdb
+    volumes:
+      - /opt/appdata/scrutiny/config:/opt/scrutiny/config
+    depends_on:
+      scrutiny-influxdb: {condition: service_healthy}
+    networks: [scrutiny, proxy] # proxy: Traefik and ntfy
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.scrutiny.rule: Host(`scrutiny.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.scrutiny.middlewares: authelia@file
+      # The collector on the Proxmox host posts here; longer rule, so it wins over the router above.
+      traefik.http.routers.scrutiny-collector.rule: >-
+        Host(`scrutiny.${DOMAIN}`) && PathPrefix(`/api`) && ClientIP(`${PVE_IP}`)
+      traefik.http.services.scrutiny.loadbalancer.server.port: "8080"
+
+  scrutiny-influxdb:
+    image: influxdb:2.8.0@sha256:983c696655e862517f07384ff427291928846174de60615b95027b50804c9592
+    container_name: scrutiny-influxdb
+    restart: unless-stopped
+    volumes:
+      - /opt/appdata/scrutiny/influxdb:/var/lib/influxdb2
+    healthcheck:
+      test: [CMD, curl, -f, http://localhost:8086/health]
+      interval: 10s
+      retries: 20
+    networks: [scrutiny]
+
+networks:
+  scrutiny:
+  proxy:
+    external: true

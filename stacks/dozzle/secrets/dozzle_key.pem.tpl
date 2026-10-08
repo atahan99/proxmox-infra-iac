@@ -1,0 +1,1 @@
+{{ pass://Homelab/dozzle/key }}

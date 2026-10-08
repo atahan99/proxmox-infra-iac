@@ -1,0 +1,79 @@
+# docker-hw's agents, deployed by Dockhand (Hawser): stats for Beszel, logs for Dozzle (live) and Loki
+# (Alloy, 30 days). Beszel and Alloy read Docker through a GET-only socket proxy on an internal network;
+# Dozzle's agent can't sit behind a proxy and reads the socket itself: full API (`:ro` only stops writes
+# to the socket file), accepted.
+# Published on the LAN: 45876 (Beszel hub on docker-apps connects), 7007 (Dozzle on docker-apps connects;
+# mutual TLS with our own certificate, Proton Pass item `dozzle`, not the default one every install shares).
+name: agents
+services:
+  socket-proxy:
+    image: wollomatic/socket-proxy:1.13.1@sha256:3935b709275e4ec35d6ed5a5c4a1f0d01ed31eec5e7234efc3357ecd47689002
+    restart: unless-stopped
+    # Same as stacks/socket-proxy (see there), only the clients differ.
+    user: "0:0"
+    cap_drop: [ALL]
+    read_only: true
+    command:
+      - -listenip=0.0.0.0
+      - -allowfrom=beszel-agent,alloy
+      - -allowGET=/(v[0-9.]+/)?(_ping|version|info|events|networks(/[^/]+)?|containers/json|containers/[^/]+/(json|logs|stats))
+      - -allowHEAD=/(v[0-9.]+/)?_ping # clients' API version negotiation
+      - -allowhealthcheck
+      - -watchdoginterval=300
+      - -stoponwatchdog # socket gone (Docker restarted): exit, restart policy reconnects
+    healthcheck:
+      test: [CMD, /healthcheck]
+      interval: 30s
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [socket-proxy]
+
+  beszel-agent:
+    image: henrygd/beszel-agent:0.21.0@sha256:f27b1aa2c68404bc5b9e1a2ab36653bd9b4ee14f6299862f09cd5051a4134767
+    restart: unless-stopped
+    env_file:
+      - path: /opt/secrets/beszel-agent.env # KEY: the hub's public key (vault beszel/hub_pubkey)
+        required: false
+    environment:
+      LISTEN: "45876"
+      DOCKER_HOST: tcp://socket-proxy:2375
+    ports:
+      - "45876:45876"
+    networks: [socket-proxy, agents]
+
+  dozzle-agent:
+    image: amir20/dozzle:v11.3.0@sha256:a7d69d20891d3dcc82636e24afa4c1c162b41d0673ef798b14f09e6b69accc5a
+    restart: unless-stopped
+    command: [agent]
+    environment:
+      DOZZLE_HOSTNAME: docker-hw
+      DOZZLE_NO_ANALYTICS: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/secrets/dozzle_cert.pem:/dozzle_cert.pem:ro
+      - /opt/secrets/dozzle_key.pem:/dozzle_key.pem:ro
+    ports:
+      - "7007:7007"
+    networks: [agents]
+
+  alloy:
+    image: grafana/alloy:v1.20.1@sha256:2aa2099af76c0098d4af7a4d6e48f86cb66dc1a000222ad927a1c67c6542d13f
+    restart: unless-stopped
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is set in the stack's .env} # Loki: https://loki.<domain> (Traefik on docker-apps)
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /opt/appdata/agents/alloy:/var/lib/alloy/data
+      - /var/log/journal:/var/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+    networks: [socket-proxy, agents]
+
+networks:
+  socket-proxy:
+    internal: true # no route out: only the agents reach the Docker API
+  agents:

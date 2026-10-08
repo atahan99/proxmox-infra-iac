@@ -1,0 +1,42 @@
+# System stats: the hub (its data holds systems and users; its key comes from the vault) and this host's agent. The other LXCs
+# run the agent as a systemd service (common role); docker-hw runs it as a container (its own stack).
+# The hub reaches this agent at beszel-agent:45876 (add it in the hub as host "beszel-agent").
+name: beszel
+services:
+  beszel:
+    image: henrygd/beszel:0.21.0@sha256:6b39a8b64f9b15d00a25e7683e31a93c46161182a54f62713525107064e10599
+    container_name: beszel
+    restart: unless-stopped
+    environment:
+      APP_URL: https://beszel.${DOMAIN:?DOMAIN is set in the stack's .env}
+    volumes:
+      - /opt/appdata/beszel:/beszel_data
+      # The hub's private key from the vault (Dozzle-style), so a rebuilt hub keeps the key every agent trusts
+      - /opt/secrets/beszel_key.pem:/beszel_data/id_ed25519:ro
+    networks: [beszel, proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.beszel.rule: Host(`beszel.${DOMAIN}`)
+      traefik.http.routers.beszel.middlewares: authelia@file
+      traefik.http.services.beszel.loadbalancer.server.port: "8090"
+
+  beszel-agent:
+    image: henrygd/beszel-agent:0.21.0@sha256:f27b1aa2c68404bc5b9e1a2ab36653bd9b4ee14f6299862f09cd5051a4134767
+    container_name: beszel-agent
+    restart: unless-stopped
+    env_file:
+      - path: /opt/secrets/beszel-agent.env # KEY: the hub's public key (vault beszel/hub_pubkey)
+        required: false
+    environment:
+      LISTEN: "45876"
+      DOCKER_HOST: tcp://socket-proxy:2375 # container stats through the read-only proxy
+    # ponytail: no host network (stays on Docker networks), so it reports this container's own network
+    # traffic, not the LXC's. CPU, memory, disks and containers are complete.
+    networks: [beszel, socket-proxy]
+
+networks:
+  beszel:
+  proxy:
+    external: true
+  socket-proxy:
+    external: true

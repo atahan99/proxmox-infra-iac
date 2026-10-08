@@ -1,0 +1,32 @@
+# Live container logs (search across all of them: Grafana/Loki). Read-only: through the socket proxy, so no
+# start/stop actions. docker-hw's containers through its Dozzle agent (agents stack), mutual TLS with our own
+# certificate (Proton Pass item `dozzle`). Login: Authelia in front, Dozzle trusts its Remote-User header (forward-proxy mode),
+# so it must never be reachable except through Traefik: no published port.
+name: dozzle
+services:
+  dozzle:
+    image: amir20/dozzle:v11.3.0@sha256:a7d69d20891d3dcc82636e24afa4c1c162b41d0673ef798b14f09e6b69accc5a
+    container_name: dozzle
+    restart: unless-stopped
+    environment:
+      DOCKER_HOST: tcp://socket-proxy:2375
+      DOZZLE_AUTH_PROVIDER: forward-proxy
+      DOZZLE_HOSTNAME: docker-apps
+      DOZZLE_NO_ANALYTICS: "true"
+      DOZZLE_REMOTE_AGENT: ${DOCKER_HW_IP}:7007|docker-hw
+    volumes:
+      - /opt/secrets/dozzle_cert.pem:/dozzle_cert.pem:ro
+      - /opt/secrets/dozzle_key.pem:/dozzle_key.pem:ro
+    networks: [dozzle, socket-proxy] # own network: only Traefik can reach it (it trusts Remote-User)
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: dozzle
+      traefik.http.routers.dozzle.rule: Host(`dozzle.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.dozzle.middlewares: authelia@file
+      traefik.http.services.dozzle.loadbalancer.server.port: "8080"
+
+networks:
+  dozzle:
+    external: true
+  socket-proxy:
+    external: true

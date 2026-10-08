@@ -1,0 +1,56 @@
+// docker-hw: every container's logs (through the read-only socket proxy) and the LXC's journal, to Loki on
+// docker-apps (through Traefik, which accepts pushes only from this host and the Proxmox host).
+
+discovery.docker "containers" {
+  host = "tcp://socket-proxy:2375"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "stack"
+  }
+}
+
+loki.source.docker "containers" {
+  host          = "tcp://socket-proxy:2375"
+  targets       = discovery.relabel.containers.output
+  relabel_rules = discovery.relabel.containers.rules
+  labels        = {host = "docker-hw", source = "docker"}
+  forward_to    = [loki.write.docker_apps.receiver]
+}
+
+loki.relabel "journal" {
+  forward_to = []
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+
+  rule {
+    source_labels = ["__journal_priority_keyword"]
+    target_label  = "level"
+  }
+}
+
+loki.source.journal "journal" {
+  path          = "/var/log/journal"
+  relabel_rules = loki.relabel.journal.rules
+  labels        = {host = "docker-hw", source = "journal"}
+  forward_to    = [loki.write.docker_apps.receiver]
+}
+
+loki.write "docker_apps" {
+  endpoint {
+    url = "https://loki." + sys.env("DOMAIN") + "/loki/api/v1/push"
+  }
+}
