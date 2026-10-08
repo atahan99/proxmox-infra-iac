@@ -1,0 +1,12 @@
+# Upstream dashboards, datasource set to uid `prometheus` and editing off; re-fetch when the exporter is
+# upgraded: adguard.json (henrywhitaker3/adguard-exporter v1.2.1 grafana/dashboard.json), qbittorrent.json
+# (martabal/qbittorrent-exporter v2.0.3 grafana/dashboard.json), traefik.json (grafana.com 17346).
+# logs.json is ours.
+apiVersion: 1
+providers:
+  - name: repo
+    folder: Homelab
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana-dashboards # stacks/monitoring/grafana/dashboards

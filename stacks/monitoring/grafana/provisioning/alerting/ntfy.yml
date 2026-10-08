@@ -1,0 +1,185 @@
+# Alerts go to ntfy (docs/architecture.md#notifications) with Grafana's own write-only token
+# (NTFY_TOKEN, Proton Pass ntfy/token_grafana). ntfy formats Grafana's payload and sets the priority
+# from the severity (stacks/ntfy/templates/grafana-homelab.yml).
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: ntfy-critical
+    receivers:
+      - uid: ntfy-critical
+        type: webhook
+        settings:
+          url: http://ntfy/homelab-critical?template=grafana-homelab
+          httpMethod: POST
+          authorization_scheme: Bearer
+          authorization_credentials: $NTFY_TOKEN
+  - orgId: 1
+    name: ntfy-infra
+    receivers:
+      - uid: ntfy-infra
+        type: webhook
+        settings:
+          url: http://ntfy/homelab-infra?template=grafana-homelab
+          httpMethod: POST
+          authorization_scheme: Bearer
+          authorization_credentials: $NTFY_TOKEN
+
+policies:
+  - orgId: 1
+    receiver: ntfy-infra
+    group_by: [alertname]
+    routes:
+      - receiver: ntfy-critical
+        object_matchers: [[severity, "=", critical]]
+
+groups:
+  - orgId: 1
+    name: homelab
+    folder: Homelab
+    interval: 1m
+    rules:
+      - uid: guest-down
+        title: Guest down
+        condition: C
+        noDataState: OK # healthy = the query returns nothing
+        execErrState: Error
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.id }} ({{ $labels.name }}) is not running, but starts on boot"
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 300, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                (pve_up{id=~"(lxc|qemu)/.*"} == 0)
+                * on(id) group_left(name) pve_guest_info
+                and on(id) pve_onboot_status == 1
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions: [{evaluator: {type: gt, params: [-1]}}]
+      - uid: storage-full
+        title: Storage almost full
+        condition: C
+        noDataState: OK # healthy = the query returns nothing
+        execErrState: Error
+        for: 15m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.id }} is {{ humanizePercentage $values.B.Value }} full"
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 900, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: pve_disk_usage_bytes{id=~"storage/.*"} / pve_disk_size_bytes{id=~"storage/.*"}
+          - refId: B # only expression results reach $values
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              reducer: last
+              expression: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0.9]}}]
+      - uid: scrape-down
+        title: Monitoring target down
+        condition: C
+        noDataState: OK # healthy = the query returns nothing
+        execErrState: Error
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Prometheus can't scrape {{ $labels.job }} ({{ $labels.instance }})"
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: up == 0
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions: [{evaluator: {type: gt, params: [-1]}}]
+      - uid: traefik-5xx
+        title: Service returning errors
+        condition: C
+        noDataState: OK # healthy = the query returns nothing
+        execErrState: Error
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.service }}: {{ humanizePercentage $values.B.Value }} of responses are 5xx"
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 300, to: 0}
+            model:
+              refId: A
+              instant: true
+              # Ignores services with under ~6 requests a minute, where one failed request is already 5%+.
+              expr: >-
+                sum by (service) (rate(traefik_service_requests_total{code=~"5.."}[5m]))
+                / sum by (service) (rate(traefik_service_requests_total[5m])) > 0.05
+                and sum by (service) (rate(traefik_service_requests_total[5m])) > 0.1
+          - refId: B # only expression results reach $values
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              reducer: last
+              expression: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [-1]}}]
+      - uid: adguard-down
+        title: AdGuard not answering
+        condition: C
+        noDataState: OK # healthy = the query returns nothing
+        execErrState: Error
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "AdGuard {{ $labels.server }} is stopped or unreachable (the other one still serves DNS)"
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 300, to: 0}
+            model:
+              refId: A
+              instant: true
+              # Unreachable: adguard_running keeps its last value, only scrape errors go up.
+              expr: >-
+                max by (server) (adguard_running == 0)
+                or max by (server) (increase(adguard_scrape_errors_total[5m]) > 5)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions: [{evaluator: {type: gt, params: [-1]}}]

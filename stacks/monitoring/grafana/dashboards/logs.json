@@ -1,0 +1,45 @@
+{
+  "title": "Logs",
+  "uid": "logs",
+  "description": "Every log Alloy ships to Loki: containers on docker-apps and docker-hw, journals of pve and both LXCs.",
+  "schemaVersion": 39,
+  "editable": false,
+  "time": {"from": "now-6h", "to": "now"},
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {"name": "host", "type": "query", "datasource": {"type": "loki", "uid": "loki"}, "query": {"type": 1, "label": "host"}, "includeAll": true, "multi": true, "current": {"text": "All", "value": "$__all"}},
+      {"name": "source", "type": "custom", "query": "docker,journal", "includeAll": true, "multi": true, "current": {"text": "All", "value": "$__all"}},
+      {"name": "search", "type": "textbox", "label": "Search (regex)", "current": {"text": "", "value": ""}}
+    ]
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Log lines by stack / unit",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "bars", "stacking": {"mode": "normal"}, "fillOpacity": 80}}},
+      "targets": [{"refId": "A", "expr": "sum by (host, stack, unit) (count_over_time({host=~\"$host\", source=~\"$source\"} |~ \"$search\" [$__auto]))", "legendFormat": "{{host}} {{stack}}{{unit}}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Errors (journal priority err and worse, or \"error\" in container logs)",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"drawStyle": "bars", "stacking": {"mode": "normal"}, "fillOpacity": 80}}},
+      "targets": [
+        {"refId": "A", "expr": "sum by (host, unit) (count_over_time({host=~\"$host\", source=\"journal\", level=~\"emerg|alert|crit|err\"} [$__auto]))", "legendFormat": "{{host}} {{unit}}"},
+        {"refId": "B", "expr": "sum by (host, container) (count_over_time({host=~\"$host\", source=\"docker\"} |~ \"(?i)\\\\berror\\\\b\" [$__auto]))", "legendFormat": "{{host}} {{container}}"}
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Lines",
+      "gridPos": {"x": 0, "y": 8, "w": 24, "h": 20},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "enableLogDetails": true},
+      "targets": [{"refId": "A", "expr": "{host=~\"$host\", source=~\"$source\"} |~ \"$search\""}]
+    }
+  ]
+}
