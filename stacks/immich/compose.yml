@@ -1,0 +1,71 @@
+# Photos, on docker-hw. Library and database stay where they are on the USB disk
+# (/mnt/external/Personal/Immich/{upload,pgdata}): the stack points at them, so
+# the database password in Proton Pass must match that database. Machine learning on the iGPU (OpenVINO); its model
+# cache in /opt/appdata/immich. Port 2283 for Traefik (file route) and the phone app's LAN address.
+# Versions follow upstream's compose for this release; the images move together (Renovate group).
+name: immich
+services:
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:v3.2.4@sha256:d317916b28090c33eb36b308464ea391f8b7df1d850fcfea227a39ec879718c2
+    container_name: immich_server
+    restart: unless-stopped
+    cpus: 2
+    depends_on:
+      redis: {condition: service_healthy}
+      database: {condition: service_started}
+    env_file:
+      - path: /opt/secrets/immich.env # DB_PASSWORD
+        required: false
+    environment: &immich-env
+      TZ: ${TZ}
+      DB_HOSTNAME: database
+      DB_USERNAME: postgres
+      DB_DATABASE_NAME: immich
+      REDIS_HOSTNAME: redis
+    volumes:
+      - /mnt/external/Personal/Immich/upload:/usr/src/app/upload
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "2283:2283"
+    networks: [immich]
+
+  immich-machine-learning:
+    image: ghcr.io/immich-app/immich-machine-learning:v3.2.4-openvino@sha256:ee28c9419670b7f4c17765fb089527eff977deb8e8fb83e714aa1fa57aa89736
+    container_name: immich_machine_learning
+    restart: unless-stopped
+    cpus: 2
+    mem_limit: 4g
+    devices:
+      - /dev/dri:/dev/dri # iGPU (renderD128, passed into the LXC by lxc_devices)
+    environment: *immich-env
+    volumes:
+      - /opt/appdata/immich/model-cache:/cache
+    networks: [immich]
+
+  redis:
+    image: valkey/valkey:9@sha256:70739f85ad2ee01a726a965584a0f94895f01b0c60b3cc8b0aeef11eaa6888cf
+    container_name: immich_redis
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 30s
+    networks: [immich]
+
+  database:
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    container_name: immich_postgres
+    restart: unless-stopped
+    shm_size: 128mb
+    env_file:
+      - path: /opt/secrets/immich-db.env # POSTGRES_PASSWORD
+        required: false
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: immich
+      POSTGRES_INITDB_ARGS: --data-checksums
+    volumes:
+      - /mnt/external/Personal/Immich/pgdata:/var/lib/postgresql/data
+    networks: [immich]
+
+networks:
+  immich:

@@ -1,0 +1,76 @@
+# Frigate's config (copied into /config at every deploy; see compose.yml). {FRIGATE_*} values come from
+# the environment (compose.yml, /opt/secrets/frigate.env from Proton Pass item `frigate`).
+mqtt:
+  enabled: true
+  host: "{FRIGATE_HA_IP}" # Home Assistant's broker
+  port: 1883
+  topic_prefix: frigate
+  client_id: frigate
+  user: "{FRIGATE_MQTT_USER}"
+  password: "{FRIGATE_MQTT_PASSWORD}"
+
+tls:
+  enabled: false # Traefik does TLS
+
+auth:
+  reset_admin_password: false
+
+detectors:
+  coral:
+    type: edgetpu
+    device: usb
+
+# No webrtc.candidates: Frigate's default is FRIGATE_GO2RTC_WEBRTC_CANDIDATE_INTERNAL (compose.yml) + stun:8555.
+go2rtc:
+  rtsp: # the 8554 restream; localhost (Frigate's own input) needs no login
+    username: "{FRIGATE_RTSP_USER}"
+    password: "{FRIGATE_RTSP_PASSWORD}"
+  streams:
+    usb_cam: # must match the camera name for automatic live view mapping
+      # The camera encodes H.264 itself: copy it through, no software encode (raw YUYV + libx264 costs ~22% CPU).
+      - ffmpeg:device?video=0&input_format=h264&video_size=1920x1080#video=copy
+      # Audio from the mic sidecar; go2rtc merges the tracks. Video stays on the direct device source, so a
+      # sidecar failure never costs recording.
+      - rtsp://mic:8554/mic
+
+cameras:
+  usb_cam:
+    ffmpeg:
+      inputs:
+        - path: rtsp://localhost:8554/usb_cam
+          roles: [detect, record]
+    detect:
+      enabled: true
+      width: 1920
+      height: 1080
+      fps: 10
+    record:
+      enabled: true
+      continuous:
+        days: 0
+      motion:
+        days: 30
+      alerts:
+        retain:
+          days: 30
+      detections:
+        retain:
+          days: 30
+    live:
+      streams:
+        usb_cam: usb_cam
+
+version: 0.18-0
+detect:
+  enabled: true
+semantic_search:
+  enabled: false
+  model_size: small
+face_recognition:
+  enabled: true
+  model_size: small
+lpr:
+  enabled: false
+classification:
+  bird:
+    enabled: false

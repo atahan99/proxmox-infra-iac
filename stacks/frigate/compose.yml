@@ -1,0 +1,84 @@
+# NVR for the C920 webcam, on docker-hw (CT 104, privileged LXC with the Coral, webcam, sound and iGPU
+# passed in by lxc_devices). The container itself is not privileged: only the devices it needs.
+# - Coral (USB): /dev/bus/usb bind-mounted live, plus a cgroup rule, because the Coral re-enumerates
+#   with a new device number once Frigate loads its firmware.
+# - Webcam/mic: video and sound devices, with cgroup rules so nodes re-created on a replug are allowed.
+# - iGPU: renderD128 for ffmpeg; PERFMON for Frigate's GPU usage graphs.
+# Config: config.yaml next to this file is copied in by frigate-config at every deploy (Frigate rewrites
+# it on upgrades, so it can't be mounted read-only). Edits in Frigate's UI are overwritten on the next
+# deploy: change it in git. Data (database, face library, model cache) in its app data;
+# recordings on the USB disk.
+# Ports: 8971 UI and API with Frigate's own login (Traefik route; Home Assistant's integration and the
+# Homepage widget log in there), 8554 RTSP restream (go2rtc login FRIGATE_RTSP_*), 8555 WebRTC. Not
+# published (no login): the internal API on 5000 and go2rtc's API on 1984, which can add exec: streams.
+name: frigate
+services:
+  frigate-config:
+    image: busybox:1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+    command: [cp, /repo/config.yaml, /config/config.yaml]
+    volumes:
+      - ./config.yaml:/repo/config.yaml:ro
+      - /opt/appdata/frigate:/config
+    network_mode: none
+
+  frigate:
+    image: ghcr.io/blakeblackshear/frigate:0.18.0@sha256:9678a83a76e4730ac7d9ea7428370e32ae656d6b312aaad30d6c69f3fef14d35
+    container_name: frigate
+    restart: unless-stopped
+    depends_on:
+      frigate-config: {condition: service_completed_successfully}
+    stop_grace_period: 30s
+    mem_limit: 4g
+    shm_size: 512mb
+    env_file:
+      - path: /opt/secrets/frigate.env # FRIGATE_MQTT_* (Home Assistant's broker), FRIGATE_RTSP_* (restream)
+        required: false
+    environment:
+      TZ: ${TZ}
+      FRIGATE_HA_IP: ${HA_IP}
+      FRIGATE_GO2RTC_WEBRTC_CANDIDATE_INTERNAL: ${DOCKER_HW_IP}:8555
+    cap_add: [PERFMON]
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/video0:/dev/video0
+      - /dev/video1:/dev/video1
+      - /dev/snd:/dev/snd
+    device_cgroup_rules:
+      - c 189:* rwm # USB (Coral)
+      - c 81:* rwm # video (webcam)
+      - c 116:* rwm # sound
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+      - /opt/appdata/frigate:/config
+      - /mnt/external/FrigateNVR/storage:/media/frigate
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs: {size: 1000000000}
+    ports:
+      - "8971:8971"
+      - "8554:8554"
+      - "8555:8555/tcp"
+      - "8555:8555/udp"
+    networks: [frigate]
+
+  # The C920's microphone, published as rtsp://mic:8554/mic; go2rtc adds it to the camera's stream.
+  mic:
+    image: bluenviron/mediamtx:1.21.1-ffmpeg@sha256:00ef3d1a243f3769ca36769b47df241a0c269c83a7735005b817505c49adb651
+    container_name: frigate-mic
+    restart: unless-stopped
+    mem_limit: 256m
+    devices:
+      - /dev/snd:/dev/snd
+    device_cgroup_rules:
+      - c 116:* rwm
+    environment:
+      # -ac 2: the mic is stereo only (mono fails with "cannot set channel count to 1"); 32000 Hz is what
+      # the device negotiates.
+      MTX_PATHS_MIC_RUNONINIT: >-
+        ffmpeg -nostdin -use_wallclock_as_timestamps 1 -f alsa -ac 2 -ar 32000 -i hw:CARD=C920,DEV=0
+        -af highpass=f=120,afftdn=nf=-20,alimiter=limit=0.95 -c:a aac -b:a 64k -f rtsp rtsp://127.0.0.1:8554/mic
+      MTX_PATHS_MIC_RUNONINITRESTART: "yes"
+    networks: [frigate]
+
+networks:
+  frigate:
