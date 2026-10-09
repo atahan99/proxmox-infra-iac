@@ -1,0 +1,28 @@
+# PDF tools. No login of its own (Authelia in front). OCR data and settings in its data.
+name: stirling-pdf
+services:
+  stirling-pdf:
+    image: stirlingtools/stirling-pdf:3.1.0@sha256:b5b9e400c086e5334a4947a0d7cd589808f743f29267d7f41c18200cf4bc48b4
+    container_name: stirling-pdf
+    restart: unless-stopped
+    mem_limit: 3g
+    environment:
+      DOCKER_ENABLE_SECURITY: "false"
+      SECURITY_ENABLELOGIN: "false"
+      LANGS: en_GB
+    volumes:
+      - /opt/appdata/stirling-pdf/trainingData:/usr/share/tessdata
+      - /opt/appdata/stirling-pdf/extraConfigs:/configs
+      - /opt/appdata/stirling-pdf/customFiles:/customFiles
+      - /opt/appdata/stirling-pdf/logs:/logs
+      - /opt/appdata/stirling-pdf/pipeline:/pipeline
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.stirling-pdf.rule: Host(`stirling-pdf.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.stirling-pdf.middlewares: authelia@file
+      traefik.http.services.stirling-pdf.loadbalancer.server.port: "8080"
+
+networks:
+  proxy:
+    external: true

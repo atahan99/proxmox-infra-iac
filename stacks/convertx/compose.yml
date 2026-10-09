@@ -1,0 +1,25 @@
+# File converter. Accounts and settings in its data; sign-ups closed (its own login, behind Authelia). JWT_SECRET only signs its sessions.
+name: convertx
+services:
+  convertx:
+    image: ghcr.io/c4illin/convertx:v0.19.0@sha256:8590a21a16adb8514a8be55b74ad0112bf58ba772328a53f7b40528fcf8fa013
+    container_name: convertx
+    restart: unless-stopped
+    env_file:
+      - path: /opt/secrets/convertx.env # JWT_SECRET
+        required: false
+    environment:
+      TZ: ${TZ}
+      ACCOUNT_REGISTRATION: "false"
+    volumes:
+      - /opt/appdata/convertx:/app/data
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.convertx.rule: Host(`convertx.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.convertx.middlewares: authelia@file
+      traefik.http.services.convertx.loadbalancer.server.port: "3000"
+
+networks:
+  proxy:
+    external: true

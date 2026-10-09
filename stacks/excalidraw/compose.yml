@@ -1,0 +1,18 @@
+# Deployed by Dockhand (git stack). No data, no secrets. Upstream only publishes `latest`,
+# so it is pinned by digest (Renovate updates the digest).
+name: excalidraw
+services:
+  excalidraw:
+    image: excalidraw/excalidraw:latest@sha256:f7ee194addd607bf831d2af0f0a34463dd4225e426cf35199ef0b12a803398e9
+    container_name: excalidraw
+    restart: unless-stopped
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.excalidraw.rule: Host(`excalidraw.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.excalidraw.middlewares: authelia@file
+      traefik.http.services.excalidraw.loadbalancer.server.port: "80"
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,26 @@
+# Private metasearch. Settings in settings.yml next to this file (upstream defaults + a few changes); its
+# secret key from Proton Pass. No data (cache only).
+name: searxng
+services:
+  searxng:
+    image: searxng/searxng:2026.10.4-d48c4b555@sha256:76b0bf285aca014c7191fc4d9234c4bfb358624ac33d8883833d496c059ec072
+    container_name: searxng
+    restart: unless-stopped
+    mem_limit: 1g
+    env_file:
+      - path: /opt/secrets/searxng.env # SEARXNG_SECRET
+        required: false
+    environment:
+      SEARXNG_BASE_URL: https://searxng.${DOMAIN:?DOMAIN is set in the stack's .env}/
+    volumes:
+      - ./settings.yml:/etc/searxng/settings.yml:ro
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.searxng.rule: Host(`searxng.${DOMAIN}`)
+      traefik.http.routers.searxng.middlewares: authelia@file
+      traefik.http.services.searxng.loadbalancer.server.port: "8080"
+
+networks:
+  proxy:
+    external: true

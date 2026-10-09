@@ -1,0 +1,11 @@
+# Only what differs from SearXNG's own defaults. The secret key comes from SEARXNG_SECRET (Proton Pass).
+use_default_settings: true
+general:
+  instance_name: SearXNG
+search:
+  safe_search: 0
+  autocomplete: ""
+  formats: [html]
+server:
+  limiter: false # LAN/Tailscale only, behind Authelia
+  image_proxy: false

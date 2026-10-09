@@ -1,0 +1,34 @@
+# Daily internet speed test over the plain line (the VPN one is in vpn-services). APP_KEY encrypts
+# data in its database: never change it.
+name: speedtest-tracker
+services:
+  speedtest-tracker:
+    image: lscr.io/linuxserver/speedtest-tracker:1.15.0@sha256:3f8a2d06703bde3a6d04dcc8178fcd6251b601ce3b8b52958779d5335b5719d1
+    container_name: speedtest-tracker
+    restart: unless-stopped
+    env_file:
+      - path: /opt/secrets/speedtest-tracker.env # APP_KEY, ADMIN_EMAIL, ADMIN_PASSWORD
+        required: false
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${TZ}
+      ADMIN_NAME: Admin
+      APP_URL: https://speedtest.${DOMAIN:?DOMAIN is set in the stack's .env}
+      ASSET_URL: https://speedtest.${DOMAIN}
+      APP_TIMEZONE: ${TZ}
+      DISPLAY_TIMEZONE: ${TZ}
+      DB_CONNECTION: sqlite
+      SPEEDTEST_SCHEDULE: "0 23 * * *" # daily at 23:00 (the VPN one runs at midnight)
+    volumes:
+      - /opt/appdata/speedtest-tracker:/config
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.speedtest.rule: Host(`speedtest.${DOMAIN}`)
+      traefik.http.routers.speedtest.middlewares: authelia@file
+      traefik.http.services.speedtest.loadbalancer.server.port: "80"
+
+networks:
+  proxy:
+    external: true

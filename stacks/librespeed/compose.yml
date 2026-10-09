@@ -1,0 +1,21 @@
+# Speed test between a device and the server (LAN / Tailscale). No data, no secrets.
+name: librespeed
+services:
+  librespeed:
+    image: ghcr.io/librespeed/speedtest:6.3.0@sha256:af011d4fb5709c6e2b2f381925a6c290d53ce2ed35fa8860e7d33e20690d5065
+    container_name: librespeed
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      TITLE: LibreSpeed
+      TELEMETRY: "false"
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.librespeed.rule: Host(`librespeed.${DOMAIN:?DOMAIN is set in the stack's .env}`)
+      traefik.http.routers.librespeed.middlewares: authelia@file
+      traefik.http.services.librespeed.loadbalancer.server.port: "8080"
+
+networks:
+  proxy:
+    external: true
