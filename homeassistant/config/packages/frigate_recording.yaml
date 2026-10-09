@@ -1,0 +1,53 @@
+# Record while nobody is at the desk: on after 15 min without motion (09:00-23:00), off on motion,
+# everything off at 02:00.
+automation:
+  - id: "1752886684131"
+    alias: night time stop recording
+    triggers:
+      - trigger: time
+        at: "02:00:00"
+    actions:
+      - action: switch.turn_off
+        target:
+          entity_id:
+            - switch.usb_cam_detect
+            - switch.usb_cam_recordings
+            - switch.usb_cam_snapshots
+            - switch.usb_cam_motion
+    mode: single
+
+  - id: "1752887033589"
+    alias: Day time motion trigger Recording
+    triggers:
+      - trigger: time
+        at: "09:00:00"
+      - trigger: state
+        entity_id: [binary_sensor.motion_sensor_motion_2]
+        from: "on"
+      - trigger: state
+        entity_id: [binary_sensor.motion_sensor_motion_2]
+        from: "off"
+        for: {minutes: 15}
+    conditions:
+      - condition: time
+        after: "09:00:00"
+        before: "23:00:00"
+    actions:
+      - if:
+          - condition: state
+            entity_id: binary_sensor.motion_sensor_motion_2
+            state: "off"
+            for: {minutes: 15}
+        then:
+          - action: switch.turn_on
+            target:
+              entity_id: &cam_switches
+                - switch.usb_cam_recordings
+                - switch.usb_cam_snapshots
+                - switch.usb_cam_detect
+                - switch.usb_cam_motion
+        else:
+          - action: switch.turn_off
+            target:
+              entity_id: *cam_switches
+    mode: single

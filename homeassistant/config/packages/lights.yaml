@@ -1,0 +1,26 @@
+light:
+  - platform: group
+    name: Hue Lights Sync
+    unique_id: group_hue_lights_sync
+    entities:
+      - light.hue_color_lamp_1
+      - light.hue_color_lamp_2
+      - light.hue_color_lamp_3
+  - platform: group
+    name: Monitor Led
+    unique_id: group_monitor_led
+    entities: [light.desk_monitor]
+  - platform: group
+    name: Under Desk
+    unique_id: group_under_desk
+    entities: [light.desk_desk]
+
+scene:
+  - id: "1720900577549"
+    name: L-RGB
+    entities:
+      light.bedroom_station: {state: "on", brightness: 255, effect: Aurora}
+      light.bedroom_bookshelf: {state: "on", brightness: 255, effect: Aurora}
+      light.desk_monitor: {state: "on", brightness: 255, effect: Aurora}
+      light.desk_desk: {state: "on", brightness: 255, hs_color: [120, 100]}
+      select.desk_light_preset: {state: Light preset 4}

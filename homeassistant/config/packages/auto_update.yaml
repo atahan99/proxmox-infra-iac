@@ -1,0 +1,31 @@
+# Nightly updates at 04:30: add-ons and HACS first, then Core and OS (they restart HA; whatever is left
+# runs the next night). Core x.y.0 waits for x.y.1. A backup first where the entity supports it.
+# The per-add-on auto-update toggles stay off. To pause updates, turn this automation off in the UI.
+automation:
+  - id: auto_update_nightly
+    alias: "Auto-update: add-ons, HACS, Core, OS (nightly)"
+    mode: single
+    triggers:
+      - trigger: time
+        at: "04:30:00"
+    actions:
+      - variables:
+          todo: >-
+            {% set last = ['update.home_assistant_core_update', 'update.home_assistant_operating_system_update'] %}
+            {% set ns = namespace(first=[], last=[]) %}
+            {% for s in states.update | selectattr('state', 'eq', 'on') %}
+              {% if s.entity_id == last[0] and (s.attributes.latest_version | string).endswith('.0') %}
+              {% elif s.entity_id in last %}{% set ns.last = ns.last + [s.entity_id] %}
+              {% else %}{% set ns.first = ns.first + [s.entity_id] %}{% endif %}
+            {% endfor %}
+            {{ ns.first + ns.last }}
+      - repeat:
+          for_each: "{{ todo }}"
+          sequence:
+            - action: update.install
+              continue_on_error: true
+              target:
+                entity_id: "{{ repeat.item }}"
+              # backup only where supported (feature flag 8 = BACKUP: Core, add-ons)
+              data: >-
+                {{ {'backup': true} if (state_attr(repeat.item, 'supported_features') | int(0)) | bitwise_and(8) else {} }}

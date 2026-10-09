@@ -1,0 +1,11 @@
+# What HACS must have installed (default store, no custom repositories). HACS has no import file:
+# these come back with the HA backup, or get reinstalled from this list. Nightly auto-update keeps them
+# current, so the versions are a record, not pins.
+integrations:
+  - {repo: hacs/integration, version: 2.0.5}
+  - {repo: blakeblackshear/frigate-hass-integration, version: v5.15.6}
+plugins: # registered as dashboard resources in configuration.yaml
+  - {repo: dermotduffy/advanced-camera-card, version: v8.1.0}
+  - {repo: thomasloven/lovelace-card-mod, version: v4.2.1}
+themes:
+  - {repo: wessamlauf/homeassistant-frosted-glass-themes, version: v1.3} # "Frosted Glass Dark" on Control Hub

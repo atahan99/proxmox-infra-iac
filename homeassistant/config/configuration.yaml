@@ -1,0 +1,32 @@
+# Home Assistant: the YAML half of the config (the UI half comes back from HA backups).
+# Deployed by `make ha-deploy`; checked in CI by `make ha-check`. See docs/home-assistant-as-code.md.
+homeassistant:
+  packages: !include_dir_named packages
+
+default_config:
+
+frontend:
+  themes: !include_dir_merge_named themes # installed by HACS (hacs.yaml), not in git
+
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - !secret docker_apps_ip # docker-apps (Traefik)
+  ip_ban_enabled: true
+  login_attempts_threshold: 5
+
+lovelace:
+  resource_mode: yaml
+  resources:
+    - url: /hacsfiles/lovelace-card-mod/card-mod.js
+      type: module
+    - url: /hacsfiles/advanced-camera-card/advanced-camera-card.js
+      type: module
+  dashboards:
+    better-controls:
+      mode: yaml
+      title: Better Controls
+      icon: mdi:monitor-dashboard
+      show_in_sidebar: true
+      require_admin: false
+      filename: dashboards/better_controls.yaml

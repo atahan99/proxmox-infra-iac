@@ -1,0 +1,125 @@
+# Better Controls (YAML mode). Theme and the camera card come from HACS (hacs.yaml).
+views:
+  - title: Control Hub
+    type: sections
+    max_columns: 7
+    top_margin: false
+    theme: Frosted Glass Dark
+    cards: []
+    badges: []
+    sections:
+      - type: grid
+        cards:
+          - square: true
+            type: grid
+            columns: 4
+            title: Bathroom
+            cards:
+              - {show_name: true, show_icon: true, type: button, entity: switch.bathroom_light_bathroom_light, name: Main Light}
+              - {show_name: true, show_icon: true, type: button, entity: switch.mirror_light_mirror_light, name: Mirror Light}
+              - {type: light, entity: light.wc}
+              - show_name: false
+                show_icon: true
+                show_state: true
+                type: glance
+                columns: 1
+                state_color: true
+                entities:
+                  - {entity: binary_sensor.contact_sensor_door}
+                  - {entity: binary_sensor.motion_sensor_motion}
+          - type: vertical-stack
+            title: Climate
+            cards:
+              - type: horizontal-stack
+                cards:
+                  - {type: gauge, entity: sensor.temperature_humidity_sensor_humidity, name: Humidity, needle: true, severity: {green: 30, yellow: 55, red: 75}}
+                  - {type: gauge, entity: sensor.temperature_humidity_sensor_temperature, name: Temperature, needle: true, max: 40, severity: {green: 18, yellow: 25, red: 30}}
+              - type: horizontal-stack
+                cards:
+                  - {chart_type: line, period: hour, type: statistics-graph, entities: [sensor.temperature_humidity_sensor_humidity], stat_types: [mean, min, max], logarithmic_scale: true, hide_legend: true}
+                  - {chart_type: line, period: hour, type: statistics-graph, entities: [sensor.temperature_humidity_sensor_temperature], stat_types: [mean, min, max], hide_legend: true, logarithmic_scale: true}
+              - {show_current: true, show_forecast: true, type: weather-forecast, entity: weather.forecast_home, forecast_type: daily, forecast_slots: 7}
+          - type: vertical-stack
+            cards:
+              - square: true
+                type: grid
+                title: Media
+                cards:
+                  - {show_name: true, show_icon: true, type: button, entity: switch.ps5_121_power}
+                  - {show_name: true, show_icon: true, type: button, entity: sensor.ps5_121_activity}
+                  - {show_name: true, show_icon: true, type: button, entity: remote.smart_tv_pro}
+              - {type: media-control, entity: media_player.smart_tv_pro}
+              - {type: media-control, entity: media_player.chromecast}
+      - type: grid
+        cards:
+          - square: true
+            type: grid
+            title: Desk Controls
+            cards:
+              - {show_name: true, show_icon: true, type: button, entity: switch.2k_monitor}
+              - {show_name: true, show_icon: true, type: button, entity: switch.4k_monitor}
+              - {show_name: true, show_icon: true, type: button, entity: remote.chromecast}
+              - {show_name: true, show_icon: true, type: button, entity: switch.rpi5_ai}
+              - {show_name: true, show_icon: true, type: button, entity: switch.rpi5_retro}
+              - {show_name: true, show_icon: true, type: button, entity: switch.pc}
+              - {type: entity, entity: siren.tplink_hub, name: H100}
+              - {type: entity, entity: siren.tapo_h110_living, name: H110-L}
+              - {type: entity, entity: siren.tapo_h110_bedroom, name: H110-B}
+          - type: vertical-stack
+            cards:
+              - square: true
+                type: grid
+                columns: 4
+                title: Frigate
+                cards:
+                  - {show_name: true, show_icon: true, type: button, entity: switch.usb_cam_snapshots, show_state: false, name: Snapshots}
+                  - {show_name: true, show_icon: true, type: button, entity: switch.usb_cam_recordings, name: Recordings}
+                  - {show_name: true, show_icon: true, type: button, entity: switch.usb_cam_detect, name: Detect}
+                  - {show_name: true, show_icon: true, type: button, entity: switch.usb_cam_motion, name: Motion}
+                  - type: vertical-stack
+                    cards:
+                      - {type: entity, entity: sensor.usb_cam_all_active_count, name: Active}
+                      - {type: entity, entity: sensor.usb_cam_all_count, name: All}
+                  - type: vertical-stack
+                    cards:
+                      - {type: entity, entity: sensor.usb_cam_person_active_count, name: Active}
+                      - {type: entity, entity: sensor.usb_cam_person_count, name: All}
+                  - type: vertical-stack
+                    cards:
+                      - {type: entity, entity: binary_sensor.usb_cam_all_occupancy, name: All}
+                      - {type: entity, entity: binary_sensor.usb_cam_person_occupancy, name: Person}
+                  - {type: entity, entity: binary_sensor.usb_cam_motion, name: Motion}
+              - type: custom:advanced-camera-card
+                cameras:
+                  - {camera_entity: camera.usb_cam}
+          - type: horizontal-stack
+            cards:
+              - {type: entity, entity: automation.day_time_motion_trigger_recording, state_color: true}
+              - {type: entity, entity: automation.night_time_stop_recording, state_color: true}
+      - type: grid
+        cards:
+          - square: true
+            type: grid
+            columns: 4
+            title: Lights
+            cards:
+              - {type: light, entity: light.bedroom_bookshelf}
+              - {type: light, entity: light.desk_desk}
+              - {type: light, entity: light.desk_monitor}
+              - {type: light, entity: light.bedroom_station}
+              - {show_name: true, show_icon: true, type: button, entity: switch.p110c}
+              - {show_name: true, show_icon: true, type: button, entity: switch.plugneon}
+              - {show_name: true, show_icon: true, type: button, entity: switch.p115_salt_2, icon: 'mdi:lamp'}
+              - {show_name: true, show_icon: true, type: button, entity: switch.main_light_main_light, name: Main Light}
+              - {type: light, entity: light.my_room}
+              - {type: light, entity: light.hue_color_lamp_1}
+              - {type: light, entity: light.hue_color_lamp_2}
+              - {type: light, entity: light.hue_color_lamp_3}
+              - {show_name: true, show_icon: true, type: button, entity: scene.my_room_tokyo, name: Tokyo, tap_action: {action: toggle}}
+              - {show_name: true, show_icon: true, type: button, entity: scene.my_room_dimmed, name: Dimmed, tap_action: {action: toggle}}
+              - {show_name: true, show_icon: true, type: button, entity: scene.my_room_bright, name: Bright, tap_action: {action: toggle}}
+              - {show_name: true, show_icon: true, type: button, entity: scene.my_room_nightlight, name: Night, tap_action: {action: toggle}}
+              - {show_name: true, show_icon: true, type: button, entity: scene.my_room_arctic_aurora, name: Arctic, tap_action: {action: toggle}}
+              - {show_name: true, show_icon: true, type: button, entity: scene.my_room_tropical_twilight, name: Tropic, tap_action: {action: toggle}}
+              - {show_name: true, show_icon: true, type: button, entity: scene.my_room_concentrate, name: Concentrate, tap_action: {action: toggle}}
+              - {show_name: true, show_icon: true, type: button, entity: scene.my_room_soho, name: Soho, tap_action: {action: toggle}}

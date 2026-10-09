@@ -1,0 +1,7 @@
+wake_on_lan:
+
+switch:
+  - platform: wake_on_lan
+    name: PC
+    mac: !secret pc_mac
+    host: !secret pc_ip
