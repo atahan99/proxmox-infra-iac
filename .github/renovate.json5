@@ -1,0 +1,75 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:best-practices", // recommended + Dependency Dashboard + pinned digests/action SHAs
+  ],
+  labels: ["renovate"],
+
+  // Supply-chain buffer: bad releases are usually pulled within hours. Security fixes skip this.
+  minimumReleaseAge: "3 days",
+
+  prConcurrentLimit: 10,
+  prHourlyLimit: 0,
+
+  platformAutomerge: false, // Renovate checks CI itself before it merges
+
+  osvVulnerabilityAlerts: true,
+  vulnerabilityAlerts: { labels: ["security"] },
+
+  customManagers: [
+    {
+      description: "Tool versions in CI, marked with a `# renovate:` comment",
+      customType: "regex",
+      managerFilePatterns: ["/^\\.github/workflows/ci\\.yml$/"],
+      matchStrings: ["# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+\\w+:\\s*v?(?<currentValue>\\S+)"],
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      description: "The HA image CI checks the config against (live HA updates itself nightly)",
+      customType: "regex",
+      managerFilePatterns: ["/^homeassistant/check\\.sh$/"],
+      matchStrings: ["image=(?<depName>[^:]+):(?<currentValue>[^@]+)@(?<currentDigest>sha256:[a-f0-9]+)"],
+      datasourceTemplate: "docker",
+    },
+  ],
+
+  packageRules: [
+    {
+      description: "CI-only updates: group and auto-merge when CI is green",
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["minor", "patch", "digest", "pinDigest"],
+      groupName: "github-actions",
+      automerge: true,
+    },
+    {
+      description: "Image rebuilds without a version change: one weekly PR",
+      matchDatasources: ["docker"],
+      matchUpdateTypes: ["digest"],
+      groupName: "docker digests",
+      schedule: ["* 0-11 * * 1"],
+    },
+    {
+      description: "Major versions: only after a tick in the Dependency Dashboard",
+      matchUpdateTypes: ["major"],
+      dependencyDashboardApproval: true,
+      labels: ["renovate", "major"],
+    },
+    {
+      description: "Database majors need dump/restore: never automatic",
+      matchPackageNames: ["ghcr.io/immich-app/postgres", "valkey/valkey", "influxdb"],
+      matchUpdateTypes: ["major"],
+      enabled: false,
+    },
+    {
+      description: "Immich images must move together",
+      matchPackageNames: ["ghcr.io/immich-app/**"],
+      groupName: "immich",
+    },
+    {
+      description: "OpenTofu providers",
+      matchManagers: ["terraform"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "opentofu providers",
+    },
+  ],
+}
