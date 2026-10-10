@@ -1,0 +1,23 @@
+#!/bin/bash
+# Managed by Ansible (pve_host). Weekly: one ntfy message listing the upgrades still pending on the host
+# and every running LXC. unattended-upgrades only installs Debian/Ubuntu updates; Proxmox, the kernel and
+# third-party repos (Docker, Plex, Tailscale, Kasm, PBS) are upgraded by hand, so this is the reminder.
+# Each machine refreshes its apt lists daily (APT::Periodic), so no `apt update` here.
+set -euo pipefail
+. /etc/homelab-ntfy.env # NTFY_URL, NTFY_TOKEN
+
+summary() { # <name> <list of package names>: "name: N (first five...)"
+  local n; n=$(wc -w <<<"$2")
+  [ "$n" -eq 0 ] || echo "$1: $n ($(head -5 <<<"$2" | paste -sd' ' -)$([ "$n" -le 5 ] || echo ' ...'))"
+}
+pending='apt list --upgradable 2>/dev/null | sed -n "s|/.*||p"'
+
+report=$(summary "$(hostname)" "$(sh -c "$pending")")
+for id in $(pct list | awk 'NR > 1 && $2 == "running" {print $1}'); do
+  report+=$'\n'$(summary "$(pct config "$id" | sed -n 's/^hostname: //p')" "$(pct exec "$id" -- sh -c "$pending" 2>/dev/null || true)")
+done
+report=$(sed '/^$/d' <<<"$report")
+
+[ -n "$report" ] || exit 0
+curl -fsS --max-time 30 -H "Authorization: Bearer $NTFY_TOKEN" -H "Title: Pending upgrades" \
+  -H "Tags: package" --data-binary "$report" "$NTFY_URL/homelab-infra" >/dev/null

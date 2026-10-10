@@ -1,1 +1,1 @@
-NTFY_AUTH_TOKENS=alerts:{{ pass://Homelab/ntfy/token_grafana }}:grafana,alerts:{{ pass://Homelab/ntfy/token_scrutiny }}:scrutiny,alerts:{{ pass://Homelab/ntfy/token_clamav }}:clamav
+NTFY_AUTH_TOKENS=alerts:{{ pass://Homelab/ntfy/token_grafana }}:grafana,alerts:{{ pass://Homelab/ntfy/token_scrutiny }}:scrutiny,alerts:{{ pass://Homelab/ntfy/token_clamav }}:clamav,alerts:{{ pass://Homelab/ntfy/token_pve }}:pve,alerts:{{ pass://Homelab/ntfy/token_pbs }}:pbs

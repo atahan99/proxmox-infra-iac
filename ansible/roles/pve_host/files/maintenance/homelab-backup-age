@@ -1,0 +1,39 @@
+#!/bin/bash
+# Managed by Ansible (pve_host). Daily: alert when a guest covered by an enabled backup job has no backup
+# newer than MAX_DAYS on that job's storage. A failed job alerts by itself (Proxmox notifications); this
+# catches a job that stopped running. Guests tagged `lab` are skipped.
+set -euo pipefail
+. /etc/homelab-ntfy.env # NTFY_URL, NTFY_TOKEN
+MAX_DAYS=4 # the job runs every 3 days
+
+node=$(hostname)
+now=$(date +%s)
+guests=$(pvesh get /cluster/resources --type vm --output-format json |
+  jq -r '.[] | select(.template != 1 and ((.tags // "") | split(";") | index("lab") | not)) | "\(.vmid) \(.name)"')
+jobs=$(pvesh get /cluster/backup --output-format json | jq -c '.[] | select(.enabled != 0)')
+stale=()
+[ -n "$jobs" ] || stale+=("no enabled backup job")
+
+while read -r job; do
+  [ -n "$job" ] || continue
+  storage=$(jq -r .storage <<<"$job")
+  if [ "$(jq -r '.all // 0' <<<"$job")" = 1 ]; then
+    ids=$(awk '{print $1}' <<<"$guests" | grep -vxF -f <(jq -r '.exclude // "" | split(",")[]' <<<"$job") || true)
+  else
+    ids=$(jq -r '.vmid // "" | split(",")[]' <<<"$job")
+  fi
+  latest=$(pvesh get "/nodes/$node/storage/$storage/content" --content backup --output-format json |
+    jq -r 'group_by(.vmid)[] | "\(.[0].vmid) \(map(.ctime) | max)"')
+  for id in $ids; do
+    last=$(awk -v id="$id" '$1 == id {print $2}' <<<"$latest")
+    if (( now - ${last:-0} > MAX_DAYS * 86400 )); then
+      name=$(awk -v id="$id" '$1 == id {print $2}' <<<"$guests")
+      stale+=("$id ${name:-?}: last backup $([ -n "$last" ] && date -d "@$last" +%F || echo never)")
+    fi
+  done
+done <<<"$jobs"
+
+[ ${#stale[@]} -eq 0 ] && exit 0
+printf '%s\n' "${stale[@]}" | curl -fsS --max-time 30 -H "Authorization: Bearer $NTFY_TOKEN" \
+  -H "Title: Backups older than $MAX_DAYS days" -H "Priority: high" -H "Tags: warning" \
+  --data-binary @- "$NTFY_URL/homelab-infra" >/dev/null

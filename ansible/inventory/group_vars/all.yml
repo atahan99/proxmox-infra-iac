@@ -36,3 +36,10 @@ homelab_stack_env:
   SWITCH_IP: "{{ lookup('ansible.builtin.env', 'SWITCH_IP') or undef(hint='SWITCH_IP is not set: run through make') }}"
   AP1_IP: "{{ lookup('ansible.builtin.env', 'AP1_IP') or undef(hint='AP1_IP is not set: run through make') }}"
   AP2_IP: "{{ lookup('ansible.builtin.env', 'AP2_IP') or undef(hint='AP2_IP is not set: run through make') }}"
+
+# Proxmox (host) and PBS notification webhook to ntfy: warnings and errors only (failed backups, GC,
+# verify, prune). Handlebars, filled in by Proxmox; `secrets.token` is the sender's ntfy token.
+homelab_ntfy_webhook:
+  url: "https://ntfy.{{ homelab_domain }}/homelab-infra"
+  headers: !unsafe ["Authorization=Bearer {{ secrets.token }}", "Title={{ title }}", "Priority=high", "Tags=warning"]
+  body: !unsafe "{{ message }}"

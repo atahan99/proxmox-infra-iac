@@ -10,7 +10,8 @@ pve_host_legacy_files:
   - /etc/apt/sources.list
   - /etc/apt/sources.list.d/ceph.sources
 
-pve_host_weekly_jobs:
+# Scripts in files/maintenance/, each run by its own timer.
+pve_host_jobs:
   - name: homelab-pbs-config-export
     description: Export the PBS (CT 108) config to the NVMe
     when: Sun 06:15 # after the 05:00 backup slot, before PBS prune at 07:15
@@ -20,6 +21,15 @@ pve_host_weekly_jobs:
   - name: homelab-lxc-fstrim
     description: Trim all running LXC volumes
     when: Sun 04:00
+  - name: homelab-backup-age
+    description: Alert on guests without a recent backup
+    when: "*-*-* 09:00"
+  - name: homelab-pending-updates
+    description: List the upgrades pending on the host and every LXC
+    when: Mon 09:00
+
+# Sender token for Proxmox's ntfy webhook and the check scripts above (topic homelab-infra).
+pve_host_ntfy_token: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/ntfy/token_pve') }}"
 
 # Monitoring (tasks/monitoring.yml). Tokens are made by hand: proxmox-<name> in Proton Pass.
 pve_host_domain: "{{ homelab_domain }}" # where Scrutiny and Loki live (Traefik on docker-apps)

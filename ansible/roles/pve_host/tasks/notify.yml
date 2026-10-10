@@ -1,0 +1,62 @@
+# Alerts to ntfy: Proxmox's own notifications (failed backup jobs) through a webhook, plus the host's
+# own checks (stale backups, pending upgrades), all with the host's sender token.
+- name: Notify | jq for the check scripts
+  ansible.builtin.apt:
+    name: jq
+
+- name: Notify | ntfy sender token for the check scripts (root only)
+  ansible.builtin.copy:
+    dest: /etc/homelab-ntfy.env
+    mode: "0600"
+    content: |
+      NTFY_URL=https://ntfy.{{ pve_host_domain }}
+      NTFY_TOKEN={{ pve_host_ntfy_token }}
+  no_log: true
+
+- name: Notify | ntfy alert when a timer job fails (OnFailure= in templates/job.service.j2)
+  ansible.builtin.copy:
+    src: maintenance/homelab-job-failed
+    dest: /usr/local/sbin/homelab-job-failed
+    mode: "0755"
+
+- name: Notify | the failure unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-job-failed@.service
+    mode: "0644"
+    content: |
+      # Managed by Ansible (pve_host)
+      [Unit]
+      Description=ntfy alert for the failed %i
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/homelab-job-failed %i
+  notify: Reload systemd
+
+- name: Notify | current webhook endpoints and matchers
+  ansible.builtin.command: pvesh get /cluster/notifications/{{ item }} --output-format json
+  loop: [endpoints/webhook, matchers]
+  register: pve_host_notify
+  changed_when: false
+  check_mode: false
+
+# Always sent (the secret can't be read back to compare), so a new token or template takes effect.
+- name: Notify | ntfy webhook endpoint
+  ansible.builtin.command: >-
+    pvesh {{ 'set /cluster/notifications/endpoints/webhook/ntfy' if pve_host_ntfy_exists
+    else 'create /cluster/notifications/endpoints/webhook --name ntfy' }}
+    --url {{ homelab_ntfy_webhook.url }} --method post
+    {% for h in homelab_ntfy_webhook.headers %}--header name={{ h.split('=')[0] }},value={{ h.split('=', 1)[1] | b64encode }} {% endfor %}
+    --body {{ homelab_ntfy_webhook.body | b64encode }}
+    --secret name=token,value={{ pve_host_ntfy_token | b64encode }}
+  vars:
+    pve_host_ntfy_exists: "{{ 'ntfy' in (pve_host_notify.results[0].stdout | from_json | map(attribute='name')) }}"
+  changed_when: not pve_host_ntfy_exists
+  no_log: true
+
+- name: Notify | matcher (warnings and errors to ntfy)
+  ansible.builtin.command: >-
+    pvesh create /cluster/notifications/matchers --name ntfy-errors --target ntfy
+    --match-severity warning,error --comment "Managed by Ansible (pve_host)"
+  when: "'ntfy-errors' not in (pve_host_notify.results[1].stdout | from_json | map(attribute='name'))"
+  changed_when: true

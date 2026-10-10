@@ -1,0 +1,27 @@
+# PBS's own notifications (failed GC, verify, prune) to ntfy, like the host's (pve_host notify.yml).
+- name: Notify | current webhook endpoints and matchers
+  ansible.builtin.command: proxmox-backup-manager notification {{ item }} list --output-format json
+  loop: [endpoint webhook, matcher]
+  register: pbs_notify
+  changed_when: false
+  check_mode: false
+
+# Always sent (the secret can't be read back to compare), so a new token or template takes effect.
+- name: Notify | ntfy webhook endpoint
+  ansible.builtin.command: >-
+    proxmox-backup-manager notification endpoint webhook {{ 'update' if pbs_ntfy_exists else 'create' }} ntfy
+    --url {{ homelab_ntfy_webhook.url }} --method post
+    {% for h in homelab_ntfy_webhook.headers %}--header name={{ h.split('=')[0] }},value={{ h.split('=', 1)[1] | b64encode }} {% endfor %}
+    --body {{ homelab_ntfy_webhook.body | b64encode }}
+    --secret name=token,value={{ pbs_ntfy_token | b64encode }}
+  vars:
+    pbs_ntfy_exists: "{{ 'ntfy' in (pbs_notify.results[0].stdout | from_json | map(attribute='name')) }}"
+  changed_when: not pbs_ntfy_exists
+  no_log: true
+
+- name: Notify | matcher (warnings and errors to ntfy)
+  ansible.builtin.command: >-
+    proxmox-backup-manager notification matcher create ntfy-errors --target ntfy
+    --match-severity warning,error --comment "Managed by Ansible (pbs)"
+  when: "'ntfy-errors' not in (pbs_notify.results[1].stdout | from_json | map(attribute='name'))"
+  changed_when: true

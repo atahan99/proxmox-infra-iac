@@ -1,0 +1,11 @@
+#!/bin/bash
+# Managed by Ansible (pve_host). Called by homelab-job-failed@<unit>.service when one of the host's
+# timer jobs fails (including the check scripts themselves), so no job fails silently.
+set -euo pipefail
+. /etc/homelab-ntfy.env # NTFY_URL, NTFY_TOKEN
+
+unit=${1:?usage: homelab-job-failed <failed unit>}
+run=(_SYSTEMD_INVOCATION_ID="$(systemctl show -p InvocationID --value "$unit")") # that run's lines only
+journalctl "${run[@]}" -n 15 -o cat | curl -fsS --max-time 30 -H "Authorization: Bearer $NTFY_TOKEN" \
+  -H "Title: $unit failed on $(hostname)" -H "Priority: high" -H "Tags: warning" \
+  --data-binary @- "$NTFY_URL/homelab-infra" >/dev/null

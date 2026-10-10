@@ -90,14 +90,14 @@
     src: "maintenance/{{ item.name }}"
     dest: "/usr/local/sbin/{{ item.name }}"
     mode: "0755"
-  loop: "{{ pve_host_weekly_jobs }}"
+  loop: "{{ pve_host_jobs }}"
 
 - name: Maintenance | systemd units
   ansible.builtin.template:
-    src: "weekly.{{ item.1 }}.j2"
+    src: "job.{{ item.1 }}.j2"
     dest: "/etc/systemd/system/{{ item.0.name }}.{{ item.1 }}"
     mode: "0644"
-  loop: "{{ pve_host_weekly_jobs | product(['service', 'timer']) | list }}"
+  loop: "{{ pve_host_jobs | product(['service', 'timer']) | list }}"
   vars:
     job: "{{ item.0 }}"
 
@@ -107,7 +107,7 @@
     enabled: true
     state: started
     daemon_reload: true
-  loop: "{{ pve_host_weekly_jobs }}"
+  loop: "{{ pve_host_jobs }}"
   ignore_errors: "{{ ansible_check_mode }}" # units are only simulated in check mode
 
 # Here, not in OpenTofu: downloading templates needs Sys.Modify on /, which the apply token
@@ -126,3 +126,6 @@
 
 - name: Monitoring | read-only API user, Scrutiny collector, Alloy (journal to Loki)
   ansible.builtin.import_tasks: monitoring.yml
+
+- name: Notify | Proxmox notifications, stale backups and pending upgrades to ntfy
+  ansible.builtin.import_tasks: notify.yml

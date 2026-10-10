@@ -22,3 +22,6 @@ pbs_vzdump: # every 3 days; not PBS itself, not the ClamAV LXC (nothing to resto
   exclude: "{{ ([vmid] + groups['clamav_servers'] | map('extract', hostvars, 'vmid') | list) | join(',') }}"
 
 pbs_token_id: "{{ pbs_backup_user }}!{{ pbs_backup_token }}"
+
+# Sender token for PBS's ntfy webhook (failed GC, verify, prune). Lab: "" (no notifications).
+pbs_ntfy_token: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/ntfy/token_pbs') }}"

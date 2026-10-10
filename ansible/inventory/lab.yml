@@ -111,6 +111,7 @@ all:
         # `pvesm remove lab-pbs` on the host.
         pbs_host_side: false
         pbs_vzdump_job: false
+        pbs_ntfy_token: "" # the lab PBS would alert the real ntfy
         pbs_root_password: "{{ lookup('ansible.builtin.password', '.lab-secrets/pbs chars=ascii_letters,digits length=24') }}"
       hosts: {}
     kasm_servers:

@@ -88,3 +88,7 @@
 
 - name: Backup token for the host
   ansible.builtin.import_tasks: token.yml
+
+- name: Notifications to ntfy
+  ansible.builtin.import_tasks: notify.yml
+  when: pbs_ntfy_token | length > 0

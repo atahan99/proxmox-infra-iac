@@ -33,7 +33,7 @@ apps: login
 # Dockhand deploys the `deploy` branch, never main: advance it only to a commit CI passed.
 release:
 	@git fetch -q origin main
-	@[ "$$(gh run list -b main -L1 --json headSha,conclusion -q '.[0].headSha+" "+.[0].conclusion')" = \
+	@[ "$$(gh run list -w ci -b main -L1 --json headSha,conclusion -q '.[0].headSha+" "+.[0].conclusion')" = \
 	  "$$(git rev-parse origin/main) success" ] || { echo "CI on origin/main is not green (yet)"; exit 1; }
 	git push origin origin/main:refs/heads/deploy
 
@@ -67,6 +67,8 @@ apply destroy: login
 	  { echo "refusing $@ ENV=prod without CONFIRM=yes"; exit 1; }
 	$(TOFU) $@ -var-file=$(ENV).tfvars
 	@[ "$(ENV)" != lab ] || rm -f .lab_known_hosts # CT 990 gets a new host key with every rebuild
+	@[ -z "$$(git status --porcelain -- tofu/terraform.tfstate.d/$(ENV))" ] || \
+	  echo "*** The encrypted state changed: commit and push tofu/terraform.tfstate.d/$(ENV) ***"
 
 # Same checks as CI. tofu validate gets dummy vars: it never touches state or the API.
 lint: export TF_VAR_state_passphrase = ci-dummy-passphrase

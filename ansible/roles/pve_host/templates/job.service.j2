@@ -1,6 +1,7 @@
 # Managed by Ansible (pve_host)
 [Unit]
 Description={{ job.description }}
+OnFailure=homelab-job-failed@%n.service
 
 [Service]
 Type=oneshot
