@@ -1,156 +1,118 @@
 # Proxmox Infra
 
-Infrastructure as code for a single-node Proxmox VE homelab: 10 guests and about 40 services, rebuilt from
-this repo, a password manager vault and a data restore.
+My homelab as code: one Proxmox server at home running 10 guests and 36 Docker stacks, rebuilt from this
+repo, a password manager vault and a data restore.
+
+## Why
+
+Everything I self-host runs on one small box: DNS for the house, cameras, photos, media, Home Assistant,
+and a few dozen apps. Built by hand, a dead NVMe or a bad upgrade would mean days of remembering how
+everything was set up. Here every setting lives in git, every secret in one vault, and a full rebuild is a
+runbook of about 3 hours, most of it unattended.
+
+It's also practice in running infrastructure properly: least-privilege tokens, CI before anything
+ships, pull-based deploys, pinned and scanned dependencies, decision records. The repo is
+public, so none of it may contain a secret or a home address.
+
+| Hardware | Guests | Docker | Exposed to the internet | Rebuild |
+|---|---|---|---|---|
+| GMKtec G3 Plus, Intel N150, NVMe + USB disk | 9 LXCs, 1 VM | 36 stacks, 56 containers | Plex only | ~3 h |
+
+## How it works
+
+```mermaid
+flowchart LR
+  Mac["Mac: make"] -- "OpenTofu" --> G["Guests<br/>9 LXCs + HAOS VM"]
+  Mac -- "Ansible" --> H["Host, guest OS,<br/>core stacks"]
+  PP["Proton Pass"] -- "secrets at deploy time" --> Mac
+  Mac -- "push" --> GH["GitHub main"] -- "CI green,<br/>make release" --> DB["deploy branch"]
+  DB -- "pulled every 5 min" --> D["Dockhand<br/>app stacks"]
+```
 
 - OpenTofu (`bpg/proxmox`) creates the LXCs and the Home Assistant VM, with encrypted state in the repo.
 - Ansible configures the host, the root-only container settings and every guest.
-- Docker stacks deploy from `stacks/` through Dockhand, which pulls a `deploy` branch that only moves after
-  CI passes.
-- Secrets live in a password manager vault (Proton Pass, read with a vault-scoped, read-only
-  [access token](https://proton.me/blog/pass-access-tokens)); the repo holds `pass://` references. Site
-  values (domain, addresses) live in the gitignored `homelab.env`, documented by `homelab.env.example`,
-  and reach every `make` target as environment variables ([ADR 2](docs/adr/2-secrets-and-site-values.md)).
-- CI (GitHub Actions) lints, validates, and scans for secrets and misconfigurations. It never deploys.
+- Dockhand deploys the Docker stacks in `stacks/` from a `deploy` branch that only moves after CI passes.
+- Secrets stay in Proton Pass; the repo holds `pass://` references. Site values (domain, addresses) live
+  in the gitignored `homelab.env`.
+- CI lints, validates and scans for secrets and misconfigurations. It never deploys.
+- No app is published to the internet: everything goes through Traefik and Authelia, reached over the
+  LAN or Tailscale.
 
-Start with [docs/architecture.md](docs/architecture.md); the full index is in [docs/](docs/README.md).
-Shipping a change: [runbooks/release.md](docs/runbooks/release.md).
+## Getting started
+
+```bash
+brew install opentofu ansible ansible-lint yamllint gitleaks trivy gh jq protonpass/tap/pass-cli
+cp homelab.env.example homelab.env   # fill in your values
+make init ENV=lab && make lint
+```
+
+The vault token and SSH key setup are in [workstation.md](docs/runbooks/workstation.md); a full rebuild is
+in [install.md](docs/runbooks/install.md).
 
 ## Commands
 
 | Command | What |
 |---|---|
-| `make init ENV=lab\|prod` | `tofu init` + workspace |
-| `make lint` | Everything CI runs, plus `make leak-check` against your `homelab.env` |
+| `make lint` | Everything CI runs, plus the leak check against your `homelab.env` |
+| `make init ENV=...` | `tofu init` and workspace |
 | `make plan ENV=...` | `tofu plan` with the read-only token |
-| `make apply ENV=...` | `tofu apply` with the apply token (asks first) |
-| `make guests ENV=...` | `make apply`, then the root-only container config |
-| `make destroy ENV=...` | Remove the environment's guests |
-| `make host-check` / `make host` | Host baseline: diff only / apply |
-| `make devices-check ENV=...` | Diff of the root-only container config |
-| `make config-check ENV=...` / `make config ENV=...` | Guest roles: diff only / apply |
-| `make apps ENV=...` | Core stacks, stack secrets, Dockhand's setup |
-| `make release` | Move the `deploy` branch to `origin/main`, only if CI on that commit is green |
-| `make ha-check` / `make ha-deploy` | Home Assistant config: check / copy to the VM and restart |
-| `make pin-kernel VERSION=...` / `make unpin-kernel` | When a new kernel breaks something |
+| `make guests ENV=...` | `tofu apply`, then the root-only container config |
+| `make apply` / `make destroy ENV=...` | OpenTofu only |
+| `make host-check` / `make host` | Host baseline: dry run / apply |
+| `make devices-check ENV=...` | Dry run of the root-only container config |
+| `make config-check` / `make config ENV=...` | Guest roles: dry run / apply |
+| `make apps ENV=...` | Docker engines, stack secrets, core stacks, Dockhand setup |
+| `make release` | Move `deploy` to `origin/main`, only if CI on that commit is green |
+| `make ha-check` / `make ha-deploy` | Home Assistant config: check / deploy and restart |
+| `make pin-kernel VERSION=...` / `make unpin-kernel` | When a new kernel breaks passthrough |
 
-`ENV=lab` is the default. `apply` and `destroy` with `ENV=prod` need `CONFIRM=yes`. Every target that
-needs site values or secrets runs under `pass-cli run --env-file homelab.env`, so copy
-`homelab.env.example` to `homelab.env` and fill it in first
-([workstation](docs/runbooks/workstation.md#site-values)).
+`ENV=lab` is the default and only touches the test container. `apply`, `guests` and `destroy` with
+`ENV=prod` need `CONFIRM=yes`.
 
-## Known trade-offs
+## Documentation
 
-Single node, no off-site backup, a privileged container for the Coral and webcam, the password manager
-required for a rebuild, Proxmox API certificate not verified. Details and reasons are in
-[docs/security.md](docs/security.md#accepted-trade-offs).
+| Doc | Covers |
+|---|---|
+| [Architecture](docs/architecture.md) | Guests, layers, config flow, requests, deploys, schedules, logs and alerts |
+| [Security](docs/security.md) | Access and privilege model, secrets, credentials, scanning, accepted trade-offs |
+| [Services](docs/services.md) | Docker stacks per host, Dockhand, stack conventions, DNS |
+| [Host baseline](docs/host-baseline.md) | What `pve_host` does to Proxmox, and why |
+| [Home Assistant](docs/home-assistant-as-code.md) | The HA VM as code, secrets, backups, updates |
+| [Decision records](docs/adr/README.md) | Why it's built this way, and what each choice costs |
+| [Workstation](docs/runbooks/workstation.md) | Setting up the Mac that runs everything |
+| [Credentials](docs/runbooks/credentials.md) | Every vault item and field, creating and rotating them |
+| [Lab testing](docs/runbooks/lab-testing.md) | Dry runs against the server and the throwaway CT 990 |
+| [Release](docs/runbooks/release.md) | Shipping a change, checks, rollback |
+| [Install](docs/runbooks/install.md) | Full rebuild, first logins, verification, restore from PBS |
+
+## Trade-offs
+
+One node, no off-site backup yet, a privileged container for the Coral and webcam, the vault needed for a
+rebuild, self-signed Proxmox certificates not verified. Reasons in
+[security.md](docs/security.md#accepted-trade-offs).
 
 ## Tech stack
 
-### Platform and IaC
-
-| | Tool | Role here |
-|---|---|---|
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/proxmox-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/proxmox.svg" alt="Proxmox VE" width="20" height="20"></picture> | [Proxmox VE](https://www.proxmox.com/en/products/proxmox-virtual-environment/overview) | Hypervisor for the 10 LXCs and the Home Assistant VM |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/opentofu.svg" alt="OpenTofu" width="20" height="20"> | [OpenTofu](https://opentofu.org) | Creates the guests via `bpg/proxmox`; state encrypted in the repo |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ansible-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ansible.svg" alt="Ansible" width="20" height="20"></picture> | [Ansible](https://www.ansible.com) | Host baseline, root-only container settings, every guest's setup |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/debian-linux.svg" alt="Debian" width="20" height="20"> | [Debian](https://www.debian.org) | OS of every LXC except Plex |
-| <img src="https://svgl.app/library/ubuntu.svg" alt="Ubuntu" width="20" height="20"> | [Ubuntu](https://ubuntu.com) | OS of the Plex LXC |
-| <img src="https://svgl.app/library/docker.svg" alt="Docker" width="20" height="20"> | [Docker](https://www.docker.com) | Engine and Compose on docker-apps and docker-hw |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/dockhand.png" alt="Dockhand" width="20" height="20"> | [Dockhand](https://dockhand.pro) | Deploys `stacks/` as git stacks from the `deploy` branch |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/dockhand.png" alt="Hawser" width="20" height="20"> | [Hawser](https://github.com/Finsys/hawser) | Dockhand agent on docker-hw and Kasm (TLS, port 2376) |
-| <img src="https://svgl.app/library/home-assistant.svg" alt="Home Assistant" width="20" height="20"> | [Home Assistant](https://www.home-assistant.io) | HAOS VM; config as code in `homeassistant/` |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/proxmox-backup-server-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/proxmox-backup-server.svg" alt="Proxmox Backup Server" width="20" height="20"></picture> | [Proxmox Backup Server](https://www.proxmox.com/en/products/proxmox-backup-server/overview) | Guest backups, datastore on the USB disk |
-
-### Automation, CI and secrets
-
-| | Tool | Role here |
-|---|---|---|
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://svgl.app/library/github_dark.svg"><img src="https://svgl.app/library/github_light.svg" alt="GitHub" width="20" height="20"></picture> | [GitHub](https://github.com) | Hosts the repo; Dockhand pulls the `deploy` branch from it |
-| <img src="https://cdn.simpleicons.org/githubactions" alt="GitHub Actions" width="20" height="20"> | [GitHub Actions](https://github.com/features/actions) | CI: `make lint` and `make ha-check`; never deploys |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/renovate.svg" alt="Renovate" width="20" height="20"> | [Renovate](https://docs.renovatebot.com) | Bumps image tags and digests, providers, actions, CI tools |
-| <img src="https://github.com/gitleaks.png?size=40" alt="Gitleaks" width="20" height="20"> | [Gitleaks](https://gitleaks.io) | Secret scan of the git history |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/trivy.png" alt="Trivy" width="20" height="20"> | [Trivy](https://trivy.dev) | Misconfiguration scan (`trivy config`) |
-| <img src="https://cdn.simpleicons.org/yaml" alt="yamllint" width="20" height="20"> | [yamllint](https://github.com/adrienverge/yamllint) | YAML lint |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ansible-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ansible.svg" alt="ansible-lint" width="20" height="20"></picture> | [ansible-lint](https://ansible.readthedocs.io/projects/lint/) | Lints the roles and playbooks |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/proton-pass.svg" alt="Proton Pass" width="20" height="20"> | [Proton Pass](https://proton.me/pass) | Vault for every secret; `pass-cli` resolves `pass://` references at deploy time |
-
-### Networking and security
-
-| | Tool | Role here |
-|---|---|---|
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/traefik.svg" alt="Traefik" width="20" height="20"> | [Traefik](https://traefik.io/traefik) | Reverse proxy for every app, wildcard TLS |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/authelia.svg" alt="Authelia" width="20" height="20"> | [Authelia](https://www.authelia.com) | Single sign-on via forward-auth |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/lets-encrypt.svg" alt="Let's Encrypt" width="20" height="20"> | [Let's Encrypt](https://letsencrypt.org) | Wildcard certificate for `*.<domain>` |
-| <img src="https://svgl.app/library/cloudflare.svg" alt="Cloudflare" width="20" height="20"> | [Cloudflare](https://www.cloudflare.com) | DNS for the domain; DNS-01 challenge with a single-zone token |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/tailscale-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/tailscale.svg" alt="Tailscale" width="20" height="20"></picture> | [Tailscale](https://tailscale.com) | Remote access: subnet router and exit node |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/adguard-home.svg" alt="AdGuard Home" width="20" height="20"> | [AdGuard Home](https://adguard.com/en/adguard-home/overview.html) | LAN DNS, blocklists, wildcard rewrite to docker-apps |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/keepalived.png" alt="keepalived" width="20" height="20"> | [keepalived](https://www.keepalived.org) | DNS virtual IP, fails over to the RPi3 |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/gluetun.svg" alt="Gluetun" width="20" height="20"> | [Gluetun](https://github.com/qdm12/gluetun) | VPN client in front of qBittorrent, with port sync |
-| <img src="https://svgl.app/library/docker.svg" alt="Socket Proxy" width="20" height="20"> | [Socket Proxy](https://github.com/wollomatic/socket-proxy) | Filtered Docker API for Traefik, Dozzle, Beszel and Alloy |
-| <img src="https://github.com/Cisco-Talos.png?size=40" alt="ClamAV" width="20" height="20"> | [ClamAV](https://www.clamav.net) | Scheduled scans of the USB disk, mounted read-only |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/samba-server.svg" alt="Samba" width="20" height="20"> | [Samba](https://www.samba.org) | SMB share of the USB disk for the Windows PC |
-
-### Observability
-
-| | Tool | Role here |
-|---|---|---|
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/prometheus.svg" alt="Prometheus" width="20" height="20"> | [Prometheus](https://prometheus.io) | Metrics, with exporters for Proxmox, qBittorrent and AdGuard |
-| <img src="https://svgl.app/library/grafana.svg" alt="Grafana" width="20" height="20"> | [Grafana](https://grafana.com/oss/grafana/) | Dashboards, log search and alerts |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/loki.svg" alt="Loki" width="20" height="20"> | [Loki](https://grafana.com/oss/loki/) | Log store, 30 days |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/alloy.svg" alt="Alloy" width="20" height="20"> | [Alloy](https://grafana.com/oss/alloy-opentelemetry-collector/) | Ships container and journal logs to Loki |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/beszel-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/beszel.svg" alt="Beszel" width="20" height="20"></picture> | [Beszel](https://beszel.dev) | Lightweight host and container stats |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/dozzle.svg" alt="Dozzle" width="20" height="20"> | [Dozzle](https://dozzle.dev) | Live container log tail |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/scrutiny-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/scrutiny.svg" alt="Scrutiny" width="20" height="20"></picture> | [Scrutiny](https://github.com/AnalogJ/scrutiny) | Disk SMART health |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/speedtest-tracker.png" alt="Speedtest Tracker" width="20" height="20"> | [Speedtest Tracker](https://github.com/alexjustesen/speedtest-tracker) | Scheduled speed tests through the VPN |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/librespeed-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/librespeed.svg" alt="LibreSpeed" width="20" height="20"></picture> | [LibreSpeed](https://github.com/librespeed/speedtest) | LAN speed test |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/changedetection.svg" alt="changedetection.io" width="20" height="20"> | [changedetection.io](https://changedetection.io) | Website change alerts |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ntfy.svg" alt="ntfy" width="20" height="20"> | [ntfy](https://ntfy.sh) | Push notifications for every alert |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/homepage.png" alt="Homepage" width="20" height="20"> | [Homepage](https://gethomepage.dev) | Start page with service widgets |
-
-### Media and home
-
-| | Tool | Role here |
-|---|---|---|
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/plex-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/plex.svg" alt="Plex" width="20" height="20"></picture> | [Plex](https://www.plex.tv) | Media server with iGPU transcoding |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/tautulli.svg" alt="Tautulli" width="20" height="20"> | [Tautulli](https://tautulli.com) | Plex stats |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/calibre-web.svg" alt="Calibre-Web Automated" width="20" height="20"> | [Calibre-Web Automated](https://github.com/crocodilestick/Calibre-Web-Automated) | E-book library |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/metube.svg" alt="MeTube" width="20" height="20"> | [MeTube](https://github.com/alexta69/metube) | Video downloader (yt-dlp web UI) |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/qbittorrent.svg" alt="qBittorrent" width="20" height="20"> | [qBittorrent](https://www.qbittorrent.org) | Torrents, only through Gluetun |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/frigate-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/frigate.svg" alt="Frigate" width="20" height="20"></picture> | [Frigate](https://frigate.video) | NVR with Coral object detection |
-| <img src="https://github.com/bluenviron.png?size=40" alt="MediaMTX" width="20" height="20"> | [MediaMTX](https://github.com/bluenviron/mediamtx) | Publishes the webcam microphone over RTSP for Frigate |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/immich.svg" alt="Immich" width="20" height="20"> | [Immich](https://immich.app) | Photo library with iGPU machine learning |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/kasm-workspaces.svg" alt="Kasm Workspaces" width="20" height="20"> | [Kasm Workspaces](https://kasm.com) | Browser-based desktops and apps |
-
-### Productivity
-
-| | Tool | Role here |
-|---|---|---|
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/mealie.svg" alt="Mealie" width="20" height="20"> | [Mealie](https://mealie.io) | Recipes and meal plans |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/freshrss.svg" alt="FreshRSS" width="20" height="20"> | [FreshRSS](https://freshrss.org) | RSS reader |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/wallos.png" alt="Wallos" width="20" height="20"> | [Wallos](https://wallosapp.com) | Subscription tracker |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/vikunja.svg" alt="Vikunja" width="20" height="20"> | [Vikunja](https://vikunja.io) | Tasks and projects |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/memos.svg" alt="Memos" width="20" height="20"> | [Memos](https://usememos.com) | Notes |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/linkding.svg" alt="linkding" width="20" height="20"> | [linkding](https://linkding.link) | Bookmarks |
-
-### Tools
-
-| | Tool | Role here |
-|---|---|---|
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/convertx.png" alt="ConvertX" width="20" height="20"> | [ConvertX](https://github.com/C4illin/ConvertX) | File converter |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/stirling-pdf.svg" alt="Stirling-PDF" width="20" height="20"> | [Stirling-PDF](https://www.stirlingpdf.com) | PDF tools |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/excalidraw.svg" alt="Excalidraw" width="20" height="20"> | [Excalidraw](https://excalidraw.com) | Whiteboard |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/searxng.svg" alt="SearXNG" width="20" height="20"> | [SearXNG](https://docs.searxng.org) | Metasearch engine |
-| <img src="https://svgl.app/library/vscode.svg" alt="code-server" width="20" height="20"> | [code-server](https://github.com/coder/code-server) | VS Code in the browser |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/forgejo.svg" alt="Forgejo" width="20" height="20"> | [Forgejo](https://forgejo.org) | Git server |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/filebrowser-quantum.svg" alt="File Browser Quantum" width="20" height="20"> | [File Browser Quantum](https://github.com/gtsteffaniak/filebrowser) | Web file manager |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/syncthing.svg" alt="Syncthing" width="20" height="20"> | [Syncthing](https://syncthing.net) | File sync between devices |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/rustdesk.svg" alt="RustDesk" width="20" height="20"> | [RustDesk](https://rustdesk.com) | Remote desktop ID and relay server |
-
-### Databases
-
-| | Tool | Role here |
-|---|---|---|
-| <img src="https://svgl.app/library/postgresql.svg" alt="PostgreSQL" width="20" height="20"> | [PostgreSQL](https://www.postgresql.org) | Immich's database (with VectorChord) |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/valkey.svg" alt="Valkey" width="20" height="20"> | [Valkey](https://valkey.io) | Immich's cache and job queue |
-| <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/influxdb.svg" alt="InfluxDB" width="20" height="20"> | [InfluxDB](https://www.influxdata.com) | Scrutiny's metrics store |
+<table>
+<tr><th colspan="6" align="left">Platform and IaC</th></tr>
+<tr><td align="center" width="16%"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/proxmox-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/proxmox.svg" alt="Proxmox VE" width="32" height="32"></picture><br><a href="https://www.proxmox.com/en/products/proxmox-virtual-environment/overview">Proxmox VE</a><br><sub>Hypervisor</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/opentofu.svg" alt="OpenTofu" width="32" height="32"><br><a href="https://opentofu.org">OpenTofu</a><br><sub>Creates the Guests</sub></td><td align="center" width="16%"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ansible-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ansible.svg" alt="Ansible" width="32" height="32"></picture><br><a href="https://www.ansible.com">Ansible</a><br><sub>Configures Host and Guests</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/debian-linux.svg" alt="Debian" width="32" height="32"><br><a href="https://www.debian.org">Debian</a><br><sub>LXC OS</sub></td><td align="center" width="16%"><img src="https://svgl.app/library/ubuntu.svg" alt="Ubuntu" width="32" height="32"><br><a href="https://ubuntu.com">Ubuntu</a><br><sub>Plex LXC OS</sub></td><td align="center" width="16%"><img src="https://svgl.app/library/docker.svg" alt="Docker" width="32" height="32"><br><a href="https://www.docker.com">Docker</a><br><sub>Runs the Stacks</sub></td></tr>
+<tr><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/dockhand.png" alt="Dockhand" width="32" height="32"><br><a href="https://dockhand.pro">Dockhand</a><br><sub>Deploys Stacks from Git</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/dockhand.png" alt="Hawser" width="32" height="32"><br><a href="https://github.com/Finsys/hawser">Hawser</a><br><sub>Dockhand's Remote Agent</sub></td><td align="center" width="16%"><img src="https://svgl.app/library/home-assistant.svg" alt="Home Assistant" width="32" height="32"><br><a href="https://www.home-assistant.io">Home Assistant</a><br><sub>Smart Home, YAML in Git</sub></td><td align="center" width="16%"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/proxmox-backup-server-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/proxmox-backup-server.svg" alt="Proxmox Backup Server" width="32" height="32"></picture><br><a href="https://www.proxmox.com/en/products/proxmox-backup-server/overview">Proxmox Backup Server</a><br><sub>Guest Backups</sub></td></tr>
+<tr><th colspan="6" align="left">CI, Updates and Secrets</th></tr>
+<tr><td align="center" width="16%"><picture><source media="(prefers-color-scheme: dark)" srcset="https://svgl.app/library/github_dark.svg"><img src="https://svgl.app/library/github_light.svg" alt="GitHub" width="32" height="32"></picture><br><a href="https://github.com">GitHub</a><br><sub>Repo, Deploy Source</sub></td><td align="center" width="16%"><img src="https://cdn.simpleicons.org/githubactions" alt="GitHub Actions" width="32" height="32"><br><a href="https://github.com/features/actions">GitHub Actions</a><br><sub>Checks, Never Deploys</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/renovate.svg" alt="Renovate" width="32" height="32"><br><a href="https://docs.renovatebot.com">Renovate</a><br><sub>Dependency Update PRs</sub></td><td align="center" width="16%"><img src="https://github.com/gitleaks.png?size=40" alt="Gitleaks" width="32" height="32"><br><a href="https://gitleaks.io">Gitleaks</a><br><sub>Secret Scan</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/trivy.png" alt="Trivy" width="32" height="32"><br><a href="https://trivy.dev">Trivy</a><br><sub>Misconfiguration Scan</sub></td><td align="center" width="16%"><img src="https://cdn.simpleicons.org/yaml" alt="yamllint" width="32" height="32"><br><a href="https://github.com/adrienverge/yamllint">yamllint</a><br><sub>YAML Lint</sub></td></tr>
+<tr><td align="center" width="16%"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ansible-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ansible.svg" alt="ansible-lint" width="32" height="32"></picture><br><a href="https://ansible.readthedocs.io/projects/lint/">ansible-lint</a><br><sub>Ansible Lint</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/proton-pass.svg" alt="Proton Pass" width="32" height="32"><br><a href="https://proton.me/pass">Proton Pass</a><br><sub>Secrets Vault</sub></td></tr>
+<tr><th colspan="6" align="left">Network and Security</th></tr>
+<tr><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/traefik.svg" alt="Traefik" width="32" height="32"><br><a href="https://traefik.io/traefik">Traefik</a><br><sub>Reverse Proxy, TLS</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/authelia.svg" alt="Authelia" width="32" height="32"><br><a href="https://www.authelia.com">Authelia</a><br><sub>SSO with 2FA</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/lets-encrypt.svg" alt="Let's Encrypt" width="32" height="32"><br><a href="https://letsencrypt.org">Let's Encrypt</a><br><sub>Wildcard Certificate</sub></td><td align="center" width="16%"><img src="https://svgl.app/library/cloudflare.svg" alt="Cloudflare" width="32" height="32"><br><a href="https://www.cloudflare.com">Cloudflare</a><br><sub>DNS, ACME Challenge</sub></td><td align="center" width="16%"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/tailscale-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/tailscale.svg" alt="Tailscale" width="32" height="32"></picture><br><a href="https://tailscale.com">Tailscale</a><br><sub>Remote Access</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/adguard-home.svg" alt="AdGuard Home" width="32" height="32"><br><a href="https://adguard.com/en/adguard-home/overview.html">AdGuard Home</a><br><sub>LAN DNS, Ad Blocking</sub></td></tr>
+<tr><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/keepalived.png" alt="keepalived" width="32" height="32"><br><a href="https://www.keepalived.org">keepalived</a><br><sub>DNS Failover IP</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/gluetun.svg" alt="Gluetun" width="32" height="32"><br><a href="https://github.com/qdm12/gluetun">Gluetun</a><br><sub>VPN for Containers</sub></td><td align="center" width="16%"><img src="https://svgl.app/library/docker.svg" alt="Socket Proxy" width="32" height="32"><br><a href="https://github.com/wollomatic/socket-proxy">Socket Proxy</a><br><sub>Read-Only Docker API</sub></td><td align="center" width="16%"><img src="https://github.com/Cisco-Talos.png?size=40" alt="ClamAV" width="32" height="32"><br><a href="https://www.clamav.net">ClamAV</a><br><sub>Scans the USB Disk</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/samba-server.svg" alt="Samba" width="32" height="32"><br><a href="https://www.samba.org">Samba</a><br><sub>Windows File Share</sub></td></tr>
+<tr><th colspan="6" align="left">Monitoring and Alerts</th></tr>
+<tr><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/prometheus.svg" alt="Prometheus" width="32" height="32"><br><a href="https://prometheus.io">Prometheus</a><br><sub>Metrics</sub></td><td align="center" width="16%"><img src="https://svgl.app/library/grafana.svg" alt="Grafana" width="32" height="32"><br><a href="https://grafana.com/oss/grafana/">Grafana</a><br><sub>Dashboards, Alerts</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/loki.svg" alt="Loki" width="32" height="32"><br><a href="https://grafana.com/oss/loki/">Loki</a><br><sub>Logs, 30 Days</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/alloy.svg" alt="Alloy" width="32" height="32"><br><a href="https://grafana.com/oss/alloy-opentelemetry-collector/">Alloy</a><br><sub>Log Shipping</sub></td><td align="center" width="16%"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/beszel-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/beszel.svg" alt="Beszel" width="32" height="32"></picture><br><a href="https://beszel.dev">Beszel</a><br><sub>Host and Container Stats</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/dozzle.svg" alt="Dozzle" width="32" height="32"><br><a href="https://dozzle.dev">Dozzle</a><br><sub>Live Logs</sub></td></tr>
+<tr><td align="center" width="16%"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/scrutiny-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/scrutiny.svg" alt="Scrutiny" width="32" height="32"></picture><br><a href="https://github.com/AnalogJ/scrutiny">Scrutiny</a><br><sub>Disk Health</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/speedtest-tracker.png" alt="Speedtest Tracker" width="32" height="32"><br><a href="https://github.com/alexjustesen/speedtest-tracker">Speedtest Tracker</a><br><sub>Internet and VPN Speed Tests</sub></td><td align="center" width="16%"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/librespeed-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/librespeed.svg" alt="LibreSpeed" width="32" height="32"></picture><br><a href="https://github.com/librespeed/speedtest">LibreSpeed</a><br><sub>LAN Speed Test</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/changedetection.svg" alt="changedetection.io" width="32" height="32"><br><a href="https://changedetection.io">changedetection.io</a><br><sub>Website Change Alerts</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ntfy.svg" alt="ntfy" width="32" height="32"><br><a href="https://ntfy.sh">ntfy</a><br><sub>Push Notifications</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/homepage.png" alt="Homepage" width="32" height="32"><br><a href="https://gethomepage.dev">Homepage</a><br><sub>Start Page</sub></td></tr>
+<tr><th colspan="6" align="left">Media and Home</th></tr>
+<tr><td align="center" width="16%"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/plex-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/plex.svg" alt="Plex" width="32" height="32"></picture><br><a href="https://www.plex.tv">Plex</a><br><sub>Media Server</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/tautulli.svg" alt="Tautulli" width="32" height="32"><br><a href="https://tautulli.com">Tautulli</a><br><sub>Plex Stats</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/calibre-web.svg" alt="Calibre-Web Automated" width="32" height="32"><br><a href="https://github.com/crocodilestick/Calibre-Web-Automated">Calibre-Web Automated</a><br><sub>E-Books</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/metube.svg" alt="MeTube" width="32" height="32"><br><a href="https://github.com/alexta69/metube">MeTube</a><br><sub>Video Downloads</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/qbittorrent.svg" alt="qBittorrent" width="32" height="32"><br><a href="https://www.qbittorrent.org">qBittorrent</a><br><sub>Torrents</sub></td><td align="center" width="16%"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/frigate-light.svg"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/frigate.svg" alt="Frigate" width="32" height="32"></picture><br><a href="https://frigate.video">Frigate</a><br><sub>Camera NVR</sub></td></tr>
+<tr><td align="center" width="16%"><img src="https://github.com/bluenviron.png?size=40" alt="MediaMTX" width="32" height="32"><br><a href="https://github.com/bluenviron/mediamtx">MediaMTX</a><br><sub>Webcam Audio for Frigate</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/immich.svg" alt="Immich" width="32" height="32"><br><a href="https://immich.app">Immich</a><br><sub>Photos</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/kasm-workspaces.svg" alt="Kasm Workspaces" width="32" height="32"><br><a href="https://kasm.com">Kasm Workspaces</a><br><sub>Browser Desktops</sub></td></tr>
+<tr><th colspan="6" align="left">Productivity and Tools</th></tr>
+<tr><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/mealie.svg" alt="Mealie" width="32" height="32"><br><a href="https://mealie.io">Mealie</a><br><sub>Recipes</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/freshrss.svg" alt="FreshRSS" width="32" height="32"><br><a href="https://freshrss.org">FreshRSS</a><br><sub>RSS</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/wallos.png" alt="Wallos" width="32" height="32"><br><a href="https://wallosapp.com">Wallos</a><br><sub>Subscriptions</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/vikunja.svg" alt="Vikunja" width="32" height="32"><br><a href="https://vikunja.io">Vikunja</a><br><sub>Tasks</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/memos.svg" alt="Memos" width="32" height="32"><br><a href="https://usememos.com">Memos</a><br><sub>Notes</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/linkding.svg" alt="linkding" width="32" height="32"><br><a href="https://linkding.link">linkding</a><br><sub>Bookmarks</sub></td></tr>
+<tr><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/convertx.png" alt="ConvertX" width="32" height="32"><br><a href="https://github.com/C4illin/ConvertX">ConvertX</a><br><sub>File Conversion</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/stirling-pdf.svg" alt="Stirling-PDF" width="32" height="32"><br><a href="https://www.stirlingpdf.com">Stirling-PDF</a><br><sub>PDF Tools</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/excalidraw.svg" alt="Excalidraw" width="32" height="32"><br><a href="https://excalidraw.com">Excalidraw</a><br><sub>Whiteboard</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/searxng.svg" alt="SearXNG" width="32" height="32"><br><a href="https://docs.searxng.org">SearXNG</a><br><sub>Search</sub></td><td align="center" width="16%"><img src="https://svgl.app/library/vscode.svg" alt="code-server" width="32" height="32"><br><a href="https://github.com/coder/code-server">code-server</a><br><sub>VS Code in the Browser</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/forgejo.svg" alt="Forgejo" width="32" height="32"><br><a href="https://forgejo.org">Forgejo</a><br><sub>Git Mirror</sub></td></tr>
+<tr><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/filebrowser-quantum.svg" alt="File Browser Quantum" width="32" height="32"><br><a href="https://github.com/gtsteffaniak/filebrowser">File Browser Quantum</a><br><sub>Web File Manager</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/syncthing.svg" alt="Syncthing" width="32" height="32"><br><a href="https://syncthing.net">Syncthing</a><br><sub>File Sync</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/rustdesk.svg" alt="RustDesk" width="32" height="32"><br><a href="https://rustdesk.com">RustDesk</a><br><sub>Remote Desktop Server</sub></td></tr>
+<tr><th colspan="6" align="left">Databases</th></tr>
+<tr><td align="center" width="16%"><img src="https://svgl.app/library/postgresql.svg" alt="PostgreSQL" width="32" height="32"><br><a href="https://www.postgresql.org">PostgreSQL</a><br><sub>Immich DB</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/valkey.svg" alt="Valkey" width="32" height="32"><br><a href="https://valkey.io">Valkey</a><br><sub>Immich Cache</sub></td><td align="center" width="16%"><img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/influxdb.svg" alt="InfluxDB" width="32" height="32"><br><a href="https://www.influxdata.com">InfluxDB</a><br><sub>Scrutiny Metrics</sub></td></tr>
+</table>

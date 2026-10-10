@@ -1,7 +1,7 @@
 # Decision records
 
-Why the repo is built the way it is. Each record states the decision, the reason, and what it costs.
-A decision that replaces an earlier one gets a new record.
+Each record states the decision, why, and what it costs. A decision that replaces an earlier one gets a
+new record.
 
 | # | Decision |
 |---|---|

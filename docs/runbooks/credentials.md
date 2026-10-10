@@ -1,41 +1,33 @@
 # Credentials
 
-Every secret is an item in the password manager vault `Homelab` (Proton Pass, see
-[ADR 2](../adr/2-secrets-and-site-values.md)). The repo reads them as
-`pass://Homelab/<item>/<field>`, so the item title and the field name must match the reference exactly.
-Scopes and rotation intervals are in [security.md](../security.md#credentials).
+Every secret is an item in the Proton Pass vault `Homelab`
+([ADR 2](../adr/2-secrets-and-site-values.md)). The repo reads them as `pass://Homelab/<item>/<field>`,
+so item titles and field names must match exactly. Scopes and rotation: [security.md](../security.md#credentials).
 
-## How fields are named
+## Field names
 
-- A Login item has built-in fields `username`, `email` and `password`. A reference ending in one of these
-  reads the built-in field. `email` and `username` are separate fields: `speedtest/email` reads Email.
-- Every other field name (`api_key`, `jwt_secret`, `token_grafana`, `docker-hw`, `rtsp_user`, ...) is a
-  custom field, looked up by its exact name. Add it to the item with that name, in lowercase as in the repo.
-  A Login item can carry custom fields next to its built-in ones.
-- An item that is read only through custom fields can be a Login or an Other (custom) item. `hawser`,
-  `dozzle` and the single-key items below are Other items.
-- Avoid the templates (API Credential, Database, Server, SSH key, WiFi) for any item the repo reads: they
-  name their fields themselves ("API Key", "Secret", "Password" with a capital) and the reference doesn't
-  match. An item made from one works once its fields are deleted and re-added with the repo's names.
-  The standalone Password type has no named fields; don't use it either.
-- A missing item or field fails the command that reads it. Ansible reads the site values once and stops
-  with a hint to run through `make` when one is missing.
+- Login items have built-in `username`, `email` and `password` fields; a reference ending in one of those
+  reads the built-in field. `email` and `username` are different fields.
+- Any other name (`api_key`, `token_grafana`, `docker-hw`, ...) is a custom field, matched by its exact
+  lowercase name. Login items can carry custom fields too; items with only custom fields can be Other
+  items.
+- Don't use the API Credential, Database, Server, SSH key or WiFi templates, or the Password type: they
+  name their own fields ("API Key", "Password") and the references won't match.
+- A missing item or field fails the command that reads it.
 
 ## Filling the vault for a fresh install
 
-A rebuild starts every app empty except Wallos, Home Assistant and the data on the USB disk
-([install.md](install.md#3-restore-data-and-first-logins-manual-1-h)), so most values can be new. Three
-kinds need care:
+A rebuild starts every app empty except Wallos, Home Assistant and the data on the USB disk, so most values
+can be new. Three kinds need care:
 
-- Values that must match data surviving the rebuild: `immich/db_password` (the database is on the USB
-  disk), `frigate/mqtt_user` and `mqtt_password` (Home Assistant's broker comes back from its backup).
-- Real values made before the rebuild that stay valid after it: `immich/api_key` (Immich's database
-  survives), `homeassistant/homepage_token` (create it before the last HA backup), `tailscale-api/password`
-  (an account token).
-- `changeme` placeholders until the app runs: `changedetection`, `mealie`, `plex`, `tautulli`, `freshrss`,
-  `pbs-homepage`, `proxmox-exporter`, `proxmox-homepage`, `tailscale-api/device_id`. A missing field stops
-  `make apps`, a placeholder doesn't. After the rebuild, put the real values in and run `make apps` again;
-  they only feed Homepage widgets and the Proxmox exporter.
+| Kind | Items |
+|---|---|
+| Must match data that survives the rebuild | `immich/db_password` (database on the USB disk); `frigate/mqtt_user`, `mqtt_password` (HA's broker comes back from its backup) |
+| Made before the rebuild, still valid after | `immich/api_key`, `homeassistant/homepage_token` (create it before the last HA backup), `tailscale-api/password` |
+| `changeme` until the app runs | `changedetection`, `mealie`, `plex`, `tautulli`, `freshrss`, `pbs-homepage`, `proxmox-exporter`, `proxmox-homepage`, `tailscale-api/device_id` |
+
+A placeholder doesn't stop `make apps`; a missing field does. After the rebuild, fill in the real values
+and run `make apps ENV=prod` again. They only feed Homepage widgets and the Proxmox exporter.
 
 ## Items
 
@@ -65,7 +57,7 @@ kinds need care:
 | `dockhand` | `username`, `password` | Login | `dockhand_config` (local admin for the API) | Generate |
 | `hawser` | `docker-hw`, `kasm` | Other | `ansible/inventory/prod.yml`, `dockhand_config` | `openssl rand -hex 24` each |
 | `dozzle` | `cert`, `key` (multi-line PEM) | Other | `stacks/dozzle/secrets/*.pem.tpl`, `stacks/agents/secrets/*.pem.tpl` | `docker run --rm -v "$PWD":/out amir20/dozzle generate-certs --cert-out /out/dozzle_cert.pem --key-out /out/dozzle_key.pem`, paste both, delete the files. Check the line breaks survived: `pass-cli item view pass://Homelab/dozzle/cert \| openssl x509 -noout -enddate` |
-| `ntfy` | `username`, `password`, `token_grafana`, `token_scrutiny`, `token_clamav` | Login + custom fields | `core_stacks`, `ntfy.env.tpl`, `monitoring-grafana.env.tpl`, `scrutiny.env.tpl`, `clamav` role | `username`/`password`: the phone's login. Tokens, one per sender (`tk_` + 29 lowercase letters or digits): `echo tk_$(LC_ALL=C tr -dc a-z0-9 </dev/urandom \| head -c 29)` |
+| `ntfy` | `username`, `password`, `token_grafana`, `token_scrutiny`, `token_clamav`, `token_pve`, `token_pbs` | Login + custom fields | `core_stacks`, `ntfy.env.tpl`, `monitoring-grafana.env.tpl`, `scrutiny.env.tpl`, `clamav` role, `pve_host` and `pbs` (Proxmox and PBS webhooks, host check scripts) | `username`/`password`: the phone's login. Tokens, one per sender (`tk_` + 29 lowercase letters or digits): `echo tk_$(LC_ALL=C tr -dc a-z0-9 </dev/urandom \| head -c 29)` |
 | `grafana` | `username`, `password` | Login | `monitoring-grafana.env.tpl`, `homepage.env.tpl` | Generate |
 | `homeassistant` | `homepage_token`, `samurai_mac` | Login + custom fields | `homepage.env.tpl`; `homelab.env` (`PC_MAC` for `make ha-deploy`) | `homepage_token`: HA → Profile → Security → long-lived token. Tokens are part of HA's backup: one made before the last backup still works after the restore. `samurai_mac`: the PC's MAC for Wake-on-LAN |
 | `beszel` | `username`, `password`, `hub_key` (multi-line private key), `hub_pubkey` | Login + custom fields | `homepage.env.tpl`; `hub_key`: `stacks/beszel/secrets/beszel_key.pem.tpl`; `hub_pubkey`: the `common` role and both `beszel-agent.env.tpl` | Generate. Beszel logs in with an email, so `username` holds the email; create that login on Beszel's first-run screen. Key pair: `ssh-keygen -t ed25519 -N '' -C beszel -f beszel_hub`, `hub_key` = the file, `hub_pubkey` = the `.pub` line, then delete both files. A new pair needs `make config` and `make apps` so every agent gets the new public key |
@@ -95,13 +87,10 @@ Outside `pass://`:
 Generated, nothing to store: the PBS backup token `pve@pbs!vzdump`, Authelia's OIDC client secrets,
 Hawser TLS keys, Kasm's install passwords, Forgejo's own secrets, and the qBittorrent and ntfy password hashes.
 
-## Rotating any credential
+## Rotating a credential
 
-1. Create the new credential.
-2. Update its vault item.
-3. Re-run its consumer (`make apps`, the role, or nothing for OpenTofu tokens).
-4. Verify.
-5. Revoke the old one.
+Create the new one, update the vault item, re-run its consumer (`make apps`, the role, or nothing for
+OpenTofu tokens), check it works, then revoke the old one.
 
 ## Proxmox tokens for OpenTofu
 
@@ -120,8 +109,7 @@ Store each as a Login item `proxmox-tofu-plan` / `proxmox-tofu-apply` with the p
 pveum user token permissions tofu@pve plan    # only *.Audit
 ```
 
-After a Proxmox reinstall both tokens must be created again.
-The monitoring tokens (`proxmox-exporter`, `proxmox-homepage`) store the secret alone, without the
+After a Proxmox reinstall both tokens must be created again. The monitoring tokens (`proxmox-exporter`, `proxmox-homepage`) store the secret alone, without the
 `monitoring@pve!<name>=` prefix: the token id is set in the stacks.
 
 ## Cloudflare DNS token (Traefik)
@@ -132,6 +120,5 @@ year (a start date in the future makes the token valid but unusable). Item: `clo
 
 ## OpenTofu state passphrase
 
-Item `opentofu`: 40+ characters. Anything but quotes and backslashes (they would break the encryption
-config); spaces and other symbols are fine. Never change it in place: add the new key and keep the old one as `fallback` until
-the state has been re-encrypted.
+Item `opentofu`: 40+ characters, no quotes or backslashes (they break the encryption config). Never change
+it in place: add the new key and keep the old one as `fallback` until the state is re-encrypted.

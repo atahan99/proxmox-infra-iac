@@ -1,9 +1,10 @@
 # 7: No off-site backup yet
 
-There is no off-site copy. PBS, the host config backups and the app data share one USB disk, so losing that
-disk (or the house) loses Immich albums and faces and the app data. Configuration is rebuilt from the repo,
-and media has separate backups.
+**Decision.** There is no off-site copy. PBS, the host config backups and the app data share one USB disk.
 
-When it is added, it will be an off-site copy of the backups on that disk. A design exists: an encrypted
-recovery bundle (database dumps, HA backup, host and PBS config, keys) uploaded with rclone to Proton
-Drive.
+**Why.** Configuration is rebuilt from the repo, the Immich originals also live in a cloud copy, and
+other media can be downloaded again. Nothing on the disk is critical. What only that disk holds is
+Immich's database (albums, faces) and the app data.
+
+**Cost.** Losing the disk, or the house, loses that data. The planned fix is an encrypted recovery bundle
+(database dumps, HA backup, host and PBS config, keys) uploaded with rclone to Proton Drive.
