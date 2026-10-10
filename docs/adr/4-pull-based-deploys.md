@@ -16,5 +16,7 @@ Renovate (hosted Mend app, this repo only) opens the update PRs: pinned digests 
 grouped. Only minor and patch updates of GitHub Actions auto-merge.
 
 **Cost.** Every deploy takes two steps, merge and release. `deploy` must exist before Dockhand's first
-sync, so `make release` runs once before the first `make apps`. A direct push to `deploy` with a stolen
-token is still possible; branch protection would close that.
+sync, so `make release` runs once before the first `make apps`. A GitHub ruleset lets only repo admins
+update `deploy` and blocks force pushes and deletion (on `main` too), so Renovate or any other non-admin
+can't move it. A stolen token of the admin account still could: it acts as the admin and bypasses the
+ruleset.
