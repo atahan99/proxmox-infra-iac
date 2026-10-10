@@ -47,6 +47,13 @@
       matchUpdateTypes: ["digest"],
       groupName: "docker digests",
       schedule: ["* 0-11 * * 1"],
+      automerge: true,
+    },
+    {
+      description: "Image patch versions: auto-merge when CI is green. Merging deploys nothing; `make release` does",
+      matchDatasources: ["docker"],
+      matchUpdateTypes: ["patch"],
+      automerge: true,
     },
     {
       description: "Major versions: only after a tick in the Dependency Dashboard",
