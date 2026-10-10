@@ -80,7 +80,7 @@ Outside `pass://`:
 | Vault access token (read-only, `Homelab` vault) | macOS Keychain, service `proton-pass-pat` ([workstation.md](workstation.md)) |
 | Mac SSH key `mac-homelab` | `~/.ssh`; public key in `group_vars/all.yml` and `tofu/variables.tf` |
 | Proxmox root password | Vault, `proxmox-root` (Login) |
-| GitHub token for the Forgejo pull mirror | Vault |
+| GitHub token for the Forgejo pull mirror | Vault, `github-forgejo` (Login, `password`): fine-grained, the mirrored repos only, Contents read-only, at most 1 year. Pasted into each mirror in Forgejo |
 | Proton account recovery phrase | Offline |
 | Gatus' ntfy.sh topic | Gatus' `.env` on the RPi3 (outside the repo) |
 
