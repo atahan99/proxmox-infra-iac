@@ -212,9 +212,9 @@ starts empty:
 | changedetection | Add the watches, notifications to ntfy `homelab-personal` |
 | FreshRSS | Create the user with Authelia's username, then switch it to Authelia's login: `ssh root@<PVE_IP> 'pct exec 109 -- docker exec -u abc freshrss php /app/www/cli/reconfigure.php --auth-type=http_auth'`. Import the OPML |
 | Memos | Nothing: `make apps` creates your account (Authelia's username, vault item `memos`), adds "Continue with Authelia" and closes sign-ups, once Dockhand has deployed it. Then link it once: sign in with the vault password, Settings → My account → Linked accounts → Authelia |
-| Vikunja, Linkding, Mealie | Nothing: the first Authelia login creates the user (Mealie makes Authelia's `admins` an admin) |
+| Vikunja, Linkding, Mealie, File Browser | Nothing: the first Authelia login creates the user (Mealie makes Authelia's `admins` an admin) |
 | Mealie (local admin) | At `/login?direct=1` as `changeme@example.com` / `MyPassword`: change both, or delete it once the Authelia user is admin |
-| Calibre-Web | Log in as `admin` / `admin123`, change the password to vault item `calibre-web`'s (Admin → Edit user); Homepage's widget logs in with it |
+| Calibre-Web | Log in as `admin` / `admin123`, change the password to vault item `calibre-web`'s (Admin → Edit user); Homepage's widget logs in with it. `make apps` already set the Authelia button (it creates your user, admin through `admins`) |
 | Plex | Claim it from localhost: `ssh -L 32400:localhost:32400 root@$PLEX_IP`, open `http://localhost:32400/web`, add the libraries. Pair Tautulli |
 | Kasm | Nothing: `make config` installs it with the admin password from vault item `kasm` and creates the 8 workspaces and the ProtonVPN egress (`kasm-vpn`). Log in as `admin@kasm.local`. If sessions don't start: Admin → Infrastructure → Zones → Proxy Port 443 |
 | RustDesk | Give the new public key (`/opt/appdata/rustdesk/hbbs/id_ed25519.pub` on docker-apps) to every client |

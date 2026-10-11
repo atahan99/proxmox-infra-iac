@@ -99,3 +99,23 @@ identity_providers:
         redirect_uris:
           - 'https://memos.{{ env "DOMAIN" }}/auth/callback'
         scopes: [openid, profile, email]
+      - client_id: filebrowser
+        client_name: File Browser
+        client_secret: '{{ secret "/data/oidc/filebrowser.digest" }}'
+        public: false
+        authorization_policy: two_factor
+        consent_mode: implicit
+        token_endpoint_auth_method: client_secret_basic
+        redirect_uris:
+          - 'https://filebrowser.{{ env "DOMAIN" }}/api/auth/oidc/callback'
+        scopes: [openid, profile, email, groups]
+      - client_id: calibre-web
+        client_name: Calibre-Web
+        client_secret: '{{ secret "/data/oidc/calibre-web.digest" }}'
+        public: false
+        authorization_policy: two_factor
+        consent_mode: implicit
+        token_endpoint_auth_method: client_secret_basic
+        redirect_uris:
+          - 'https://books.{{ env "DOMAIN" }}/login/generic/authorized'
+        scopes: [openid, profile, email, groups]

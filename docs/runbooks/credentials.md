@@ -75,7 +75,7 @@ and run `make apps ENV=prod` again. They only feed Homepage widgets and the Prox
 | `openwrt-homepage` | `username` (`homepage`), `password` | Login | `homepage.env.tpl` | The router's read-only rpcd login for Homepage's widget (ACL `homepage` in `/usr/share/rpcd/acl.d/`, user in `/etc/config/rpcd`); the router isn't in this repo |
 | `convertx` | `jwt_secret` | Other | `convertx.env.tpl` | `openssl rand -hex 32` |
 | `searxng` | `secret_key` | Other | `searxng.env.tpl` | `openssl rand -hex 32` |
-| `filebrowser` | `password` | Login (username admin) | `filebrowser.env.tpl` | Generate |
+| `filebrowser` | `password` | Login (username admin) | `filebrowser.env.tpl` | Generate. Creates the local admin of a new database only; you log in through Authelia (password login is off) |
 
 Outside `pass://`:
 

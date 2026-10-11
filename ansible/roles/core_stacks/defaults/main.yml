@@ -34,9 +34,10 @@ core_stacks_authelia_email: "{{ lookup('pipe', 'pass-cli item view pass://Homela
 
 # OIDC clients of Authelia (each also needs an entry in stacks/authelia/configuration.yml). Their
 # secrets are generated on the host in /opt/appdata/authelia/oidc/ and backed up with the CT.
-core_stacks_oidc_clients: [dockhand, grafana, vikunja, mealie, memos]
+core_stacks_oidc_clients: [dockhand, grafana, vikunja, mealie, memos, filebrowser, calibre-web]
 # Clients that read their secret from an env var: client -> variable, in /opt/secrets/oidc-<client>.env.
 core_stacks_oidc_env:
   grafana: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
   vikunja: VIKUNJA_AUTH_OPENID_PROVIDERS_AUTHELIA_CLIENTSECRET
   mealie: OIDC_CLIENT_SECRET
+  filebrowser: FILEBROWSER_OIDC_CLIENT_SECRET

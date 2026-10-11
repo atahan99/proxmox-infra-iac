@@ -1,0 +1,3 @@
+- name: Restart Calibre-Web # it reads app.db's settings at start
+  ansible.builtin.command: docker restart calibre-web
+  changed_when: true

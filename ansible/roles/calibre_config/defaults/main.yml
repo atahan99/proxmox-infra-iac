@@ -1,0 +1,6 @@
+# Calibre-Web Automated's Authelia login (generic OIDC). Its settings live in its own database (app.db),
+# so they're written there and the container restarted. The local admin stays for Homepage's widget.
+calibre_config_db: /opt/appdata/calibre-web/app.db
+calibre_config_issuer: https://auth.{{ core_stacks_domain }}
+# Dockhand deploys Calibre-Web a few minutes after `make apps` on a fresh install: wait this long for it.
+calibre_config_wait_retries: 60
