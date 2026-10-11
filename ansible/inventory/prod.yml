@@ -26,11 +26,14 @@ all:
                 - "mp0: /mnt/external/FrigateNVR,mp=/mnt/external/FrigateNVR"
                 - "mp1: /mnt/external/Personal/Immich,mp=/mnt/external/Personal/Immich"
                 - "dev0: /dev/dri/renderD128,mode=0666"
-                # Coral: whole bus, it re-enumerates (new device id) after the firmware load
+                # Coral: whole bus, it re-enumerates (new device id) after the firmware load. A privileged CT
+                # still only opens device numbers its cgroup allows: 189 = USB.
+                - "lxc.cgroup2.devices.allow: c 189:* rwm"
                 - "lxc.mount.entry: /dev/bus/usb/002 dev/bus/usb/002 none bind,optional,create=dir"
                 # Webcam + mic: raw lines because lxc-video-sync re-creates the nodes on replug
                 - "features: nesting=1" # privileged: OpenTofu's token can't set features here
-                - "lxc.cgroup2.devices.allow: c 81:* rwm"
+                - "lxc.cgroup2.devices.allow: c 81:* rwm" # video (webcam)
+                - "lxc.cgroup2.devices.allow: c 116:* rwm" # ALSA (webcam mic)
                 - "lxc.mount.entry: /dev/video0 dev/video0 none bind,optional,create=file"
                 - "lxc.mount.entry: /dev/video1 dev/video1 none bind,optional,create=file"
                 - "lxc.mount.entry: /dev/media0 dev/media0 none bind,optional,create=file"
