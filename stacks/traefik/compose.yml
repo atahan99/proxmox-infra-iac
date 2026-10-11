@@ -79,6 +79,11 @@ services:
       traefik.http.routers.traefik.rule: Host(`traefik.${DOMAIN}`)
       traefik.http.routers.traefik.service: api@internal
       traefik.http.routers.traefik.middlewares: authelia@file
+      # Homepage's widget: only the read-only /api/overview (router/service/middleware counts) on the
+      # internal :8080 entrypoint, which isn't published on the host (it already serves /ping, /metrics).
+      traefik.http.routers.traefik-overview.entrypoints: traefik
+      traefik.http.routers.traefik-overview.rule: Path(`/api/overview`)
+      traefik.http.routers.traefik-overview.service: api@internal
 
 networks:
   proxy:

@@ -2,6 +2,15 @@
 # from files Ansible generates on the host (/opt/appdata/authelia/oidc = /data/oidc).
 server:
   address: tcp://:9091
+  # Forward-auth checks only the session cookie. By default it also reads the Authorization header as
+  # Authelia credentials, and apps that send their own token there (Beszel/PocketBase, Vikunja) then get
+  # a 401 with a Basic-auth challenge: the browser's sign-in box instead of the app.
+  endpoints:
+    authz:
+      forward-auth:
+        implementation: ForwardAuth
+        authn_strategies:
+          - name: CookieSession
 log:
   level: info
 theme: auto

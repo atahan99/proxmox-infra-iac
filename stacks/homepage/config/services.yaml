@@ -221,6 +221,9 @@
         href: https://traefik.{{HOMEPAGE_VAR_DOMAIN}}
         siteMonitor: http://traefik:8080/ping
         description: Reverse proxy and certificates
+        widget:
+          type: traefik
+          url: http://traefik:8080
 
     - Authelia:
         icon: authelia.svg
