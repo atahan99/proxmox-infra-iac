@@ -139,7 +139,7 @@ services:
     container_name: qbittorrent-exporter
     restart: unless-stopped
     env_file:
-      - path: /opt/secrets/monitoring-qbittorrent-exporter.env # QBITTORRENT_USERNAME, QBITTORRENT_PASSWORD
+      - path: /opt/secrets/monitoring-qbittorrent-exporter.env # QBITTORRENT_API_KEY (qBittorrent 5.2+ wants a key, not a login)
         required: false
     environment:
       QBITTORRENT_BASE_URL: http://gluetun:8080 # vpn-services: qBittorrent lives in gluetun's network

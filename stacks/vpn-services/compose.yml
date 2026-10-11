@@ -43,7 +43,10 @@ services:
     labels:
       traefik.enable: "true"
       traefik.http.routers.qbittorrent.rule: Host(`qbittorrent.${DOMAIN:?DOMAIN is set in the stack's .env}`)
-      traefik.http.routers.qbittorrent.middlewares: authelia@file
+      traefik.http.routers.qbittorrent.middlewares: authelia@file,qbittorrent-no-referer
+      # qBittorrent answers "Unauthorized" to a Referer from another host, and after the Authelia login the
+      # browser arrives from auth.<domain>. Without a Referer it checks Origin, which still stops cross-site posts.
+      traefik.http.middlewares.qbittorrent-no-referer.headers.customrequestheaders.Referer: ""
       traefik.http.routers.qbittorrent.service: qbittorrent
       traefik.http.services.qbittorrent.loadbalancer.server.port: "8080"
       traefik.http.routers.speedtest-vpn.rule: Host(`speedtest-vpn.${DOMAIN}`)

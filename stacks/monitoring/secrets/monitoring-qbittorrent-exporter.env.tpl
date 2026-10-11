@@ -1,2 +1,1 @@
-QBITTORRENT_USERNAME={{ pass://Homelab/qbittorrent/username }}
-QBITTORRENT_PASSWORD={{ pass://Homelab/qbittorrent/password }}
+QBITTORRENT_API_KEY={{ pass://Homelab/qbittorrent/api_key }}
