@@ -24,3 +24,4 @@ HOMEPAGE_VAR_IMMICH_KEY={{ pass://Homelab/immich/api_key }}
 HOMEPAGE_VAR_FRESHRSS_USERNAME={{ pass://Homelab/freshrss/username }}
 HOMEPAGE_VAR_FRESHRSS_PASSWORD={{ pass://Homelab/freshrss/api_password }}
 HOMEPAGE_VAR_MEALIE_KEY={{ pass://Homelab/mealie/api_key }}
+HOMEPAGE_VAR_DOCKHAND_KEY={{ pass://Homelab/dockhand/api_key }}

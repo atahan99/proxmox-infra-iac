@@ -26,7 +26,7 @@
           key: "{{HOMEPAGE_VAR_IMMICH_KEY}}"
 
     - Calibre-Web:
-        icon: calibre-web-automated
+        icon: sh-calibre-web-automated-book-downloader.png
         href: https://books.{{HOMEPAGE_VAR_DOMAIN}}
         siteMonitor: http://calibre-web:8083
         description: Ebooks, send to Kindle
@@ -201,9 +201,14 @@
           password: "{{HOMEPAGE_VAR_PBS_TOKEN}}"
 
     - Dockhand:
-        icon: docker.svg
+        icon: sh-dockhand.png
         href: https://dockhand.{{HOMEPAGE_VAR_DOMAIN}}
         description: Docker management (git stacks)
+        widget:
+          type: dockhand
+          url: https://dockhand.{{HOMEPAGE_VAR_DOMAIN}}
+          key: "{{HOMEPAGE_VAR_DOCKHAND_KEY}}"
+          fields: ["running", "total", "stacks", "pending_updates"]
 
     - Forgejo:
         icon: forgejo.svg

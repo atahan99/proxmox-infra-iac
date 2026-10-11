@@ -135,6 +135,9 @@ Supply chain:
   forge it. They can already read the same data through the proxy, and Dozzle's actions and shell are off.
 - AdGuard sync to the RPi3 is plain HTTP, so the replica's admin password crosses the LAN every
   5 minutes.
+- Dockhand's `/api/dashboard/stats` skips Authelia so Homepage's widget can read it with a Dockhand API
+  token. It's the only Dockhand path without Authelia, read-only, and reachable from the LAN, Tailscale
+  and containers on `proxy`.
 - The repo is public: MACs, VMIDs, host numbers and the encrypted state are readable. None grants
   access.
 - Passthrough (iGPU, Coral, webcam) can only be tested on the real server.

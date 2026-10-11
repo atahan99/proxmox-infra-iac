@@ -24,6 +24,11 @@ services:
       traefik.docker.network: dockhand
       traefik.http.routers.dockhand.rule: Host(`dockhand.${DOMAIN:?DOMAIN is set in the stack's .env}`)
       traefik.http.routers.dockhand.middlewares: authelia@file
+      # Homepage's widget: this one read-only endpoint skips Authelia and needs a Dockhand API token
+      # (Bearer). Identity headers are already stripped on the entrypoint. Homepage reaches it through
+      # Traefik's alias on `proxy`, so Dockhand itself stays off that network.
+      traefik.http.routers.dockhand-stats.rule: Host(`dockhand.${DOMAIN}`) && Path(`/api/dashboard/stats`)
+      traefik.http.routers.dockhand-stats.service: dockhand
       traefik.http.services.dockhand.loadbalancer.server.port: "3000"
 
 networks:

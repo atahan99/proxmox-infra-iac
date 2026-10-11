@@ -58,8 +58,9 @@ services:
       - ./dynamic:/etc/traefik/dynamic:ro
     networks:
       proxy:
-        # Apps that check OIDC tokens server-side (Grafana) reach Authelia here, not via the LAN DNS.
-        aliases: ["auth.${DOMAIN}"]
+        # Apps that check OIDC tokens server-side (Grafana) reach Authelia here, not via the LAN DNS;
+        # Homepage reaches Dockhand's stats route here (Dockhand isn't on `proxy`).
+        aliases: ["auth.${DOMAIN}", "dockhand.${DOMAIN}"]
       socket-proxy:
       forgejo:
       linkding:
