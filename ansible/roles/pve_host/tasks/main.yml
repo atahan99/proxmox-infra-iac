@@ -26,6 +26,14 @@
   loop: "{{ pve_host_legacy_files }}"
   notify: Update apt cache
 
+# Kept empty, not deleted: an update recreates it (empty), which showed as drift every run.
+- name: Cleanup | the legacy sources.list stays empty (the sources are the deb822 files above)
+  ansible.builtin.copy:
+    content: ""
+    dest: /etc/apt/sources.list
+    mode: "0644"
+  notify: Update apt cache
+
 - name: Apt | refresh the cache before installing from the new sources
   ansible.builtin.meta: flush_handlers
 

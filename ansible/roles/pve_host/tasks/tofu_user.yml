@@ -41,6 +41,21 @@
     - item.token is not defined or item.token in pve_host_tokens
   changed_when: true
 
+- name: OpenTofu | role TofuPlanDisk (VM.Config.Disk only)
+  ansible.builtin.command: pveum role add TofuPlanDisk --privs VM.Config.Disk
+  when: pve_host_read.results[1].stdout | from_json | selectattr('roleid', 'eq', 'TofuPlanDisk') | length == 0
+  changed_when: true
+
+# Both roles: an ACL on /vms/<id> replaces, for that path, what the token inherits from /.
+- name: OpenTofu | plan token may read the VMs' disks (see pve_host_tofu_plan_disk_vms)
+  ansible.builtin.command: pveum acl modify /vms/{{ item }} --tokens '{{ pve_host_tofu_user }}!plan' --roles PVEAuditor,TofuPlanDisk
+  loop: "{{ pve_host_tofu_plan_disk_vms }}"
+  when:
+    - "'plan' in pve_host_tokens"
+    - pve_host_read.results[2].stdout | from_json | selectattr('path', 'eq', '/vms/' ~ item)
+      | selectattr('ugid', 'eq', pve_host_tofu_user ~ '!plan') | map(attribute='roleid') | sort != ['PVEAuditor', 'TofuPlanDisk']
+  changed_when: true
+
 - name: OpenTofu | tokens still to create by hand
   ansible.builtin.debug:
     msg: >-

@@ -51,12 +51,12 @@
     label: "{{ item.name }}"
   register: pbs_repos
 
-- name: Repos | legacy one-line files
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: absent
-  loop:
-    - /etc/apt/sources.list
+# Kept empty, not deleted: an update recreates it (empty), which showed as drift every run.
+- name: Repos | the legacy sources.list stays empty (the sources are the deb822 files above)
+  ansible.builtin.copy:
+    content: ""
+    dest: /etc/apt/sources.list
+    mode: "0644"
 
 - name: Package
   ansible.builtin.apt:

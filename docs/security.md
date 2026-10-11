@@ -33,7 +33,8 @@
   | nas | Everything; `Backups` and `Proxmox` are vetoed on the share |
   | security | Everything, read-only |
 
-- OpenTofu never gets root. It uses two API tokens: `tofu@pve!plan` (`PVEAuditor`) and `tofu@pve!apply`
+- OpenTofu never gets root. It uses two API tokens: `tofu@pve!plan` (`PVEAuditor`, plus `VM.Config.Disk` on the
+  HAOS VM only: Proxmox shows a VM's disk volumes to no one else, and the provider reads them) and `tofu@pve!apply`
   (role `TofuApply`: guest allocate and config, power, datastore space, network use, `Sys.Audit`; no
   users, ACLs, storage, node config or `Sys.Modify`). Root-only settings go through Ansible over SSH
   ([ADR 3](adr/3-root-only-steps-in-ansible.md)).
@@ -74,7 +75,7 @@ Every item and field in the vault, and how to create each, is in
 | Credential | Scope | Rotation |
 |---|---|---|
 | Proton Pass access token | `Homelab` vault, read-only | 1 year |
-| `tofu@pve!plan` / `!apply` | `PVEAuditor` / `TofuApply` | 1 year; new after a reinstall |
+| `tofu@pve!plan` / `!apply` | `PVEAuditor` (+ `VM.Config.Disk` on VM 102) / `TofuApply` | 1 year; new after a reinstall |
 | `monitoring@pve!exporter` / `!homepage` | `PVEAuditor` | 1 year; new after a reinstall |
 | `pve@pbs!vzdump` | Backup to one datastore | Recreated by the pbs role |
 | PBS Homepage token | Datastore audit | 1 year |
