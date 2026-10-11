@@ -30,6 +30,11 @@
         href: https://books.{{HOMEPAGE_VAR_DOMAIN}}
         siteMonitor: http://calibre-web:8083
         description: Ebooks, send to Kindle
+        widget:
+          type: calibreweb
+          url: http://calibre-web:8083
+          username: "{{HOMEPAGE_VAR_CALIBRE_USERNAME}}"
+          password: "{{HOMEPAGE_VAR_CALIBRE_PASSWORD}}"
 
 - Smart Home:
     - Home Assistant:

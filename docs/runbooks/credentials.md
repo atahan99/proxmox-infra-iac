@@ -50,6 +50,7 @@ and run `make apps ENV=prod` again. They only feed Homepage widgets and the Prox
 | `vpn-services` | `password` (WireGuard `PrivateKey`) | Login | `stacks/vpn-services/secrets/vpn-services.env.tpl` | account.protonvpn.com → WireGuard configuration with NAT-PMP on |
 | `kasm-vpn` | `password` (WireGuard `PrivateKey`), `note` (the rest of the `.conf`) | Login | `kasm` role: the note (without its `PrivateKey` line) becomes the egress gateway, the password the egress credential | account.protonvpn.com → WireGuard configuration, a second one (not `vpn-services`' key: one key, one tunnel), NAT-PMP off |
 | `kasm` | `username` (`admin@kasm.local`), `password` | Login | `kasm` role: the installer's admin password, then its API login for workspaces and egress | Generate. On a running Kasm it must match the admin's current password |
+| `calibre-web` | `username`, `password` | Login | `homepage.env.tpl` (Calibre-Web widget, OPDS stats with Basic login) | Calibre-Web's admin login, changed from the image's `admin`/`admin123` at first login |
 | `gluetun-api` | `password` | Login | `vpn-services-gluetun-auth.toml.tpl`, `homepage.env.tpl` | `openssl rand -hex 32` |
 | `qbittorrent` | `username`, `password` | Login | `core_stacks` (hashed for qBittorrent), `homepage.env.tpl`, qBittorrent exporter | Generate |
 | `speedtest-vpn` | `email`, `password`, `app_key` | Login + custom field | `vpn-services-speedtest.env.tpl` | `echo "base64:$(openssl rand -base64 32)"` for `app_key` |

@@ -214,7 +214,7 @@ starts empty:
 | Memos | Create the first account (it becomes admin), then turn off sign-ups |
 | Vikunja, Linkding | Nothing: the first Authelia login creates the user |
 | Mealie | Log in as `changeme@example.com` / `MyPassword`, change both |
-| Calibre-Web | Log in as `admin` / `admin123`, change the password (Admin → Edit user) |
+| Calibre-Web | Log in as `admin` / `admin123`, change the password to vault item `calibre-web`'s (Admin → Edit user); Homepage's widget logs in with it |
 | Plex | Claim it from localhost: `ssh -L 32400:localhost:32400 root@$PLEX_IP`, open `http://localhost:32400/web`, add the libraries. Pair Tautulli |
 | Kasm | Nothing: `make config` installs it with the admin password from vault item `kasm` and creates the 8 workspaces and the ProtonVPN egress (`kasm-vpn`). Log in as `admin@kasm.local`. If sessions don't start: Admin → Infrastructure → Zones → Proxy Port 443 |
 | RustDesk | Give the new public key (`/opt/appdata/rustdesk/hbbs/id_ed25519.pub` on docker-apps) to every client |
