@@ -7,9 +7,11 @@ kasm_port: 443
 # --no-images: workspace images are pulled by the agent for the workspaces you add, not all defaults.
 # --skip-v4l2loopback: needs a kernel module, which an LXC can't load.
 # Egress stays on: its sidecar network plugin carries the optional ProtonVPN gateway (picked per session
-# at launch, set up in Kasm's admin UI). WireGuard comes from the host kernel
-# (pve_host loads the module; an LXC can't), so the installer's own WireGuard step has nothing to do.
-kasm_install_flags: [--no-images, --skip-v4l2loopback]
+# at launch, set up in Kasm's admin UI). WireGuard comes from the host kernel (pve_host loads the module).
+# --ignore-dep-failures: in an LXC `modprobe wireguard` always fails, and the installer's fallback
+# (`$(apt-get install wireguard)`, 1.19) runs apt's output as a command, so it reports a failure even
+# though the tools install and the host's module works. Its other optional step is the rclone plugin.
+kasm_install_flags: [--no-images, --skip-v4l2loopback, --ignore-dep-failures]
 
 # Nightly database dump (also inside the PBS backup of the container).
 kasm_backup_dir: /var/backups/kasm

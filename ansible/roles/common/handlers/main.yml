@@ -6,7 +6,10 @@
     daemon_reload: true
   ignore_errors: "{{ ansible_check_mode }}"
 
-# A drop-in can't be checked with `validate:`, so check the whole config before the reload. Skipped in check mode.
+# A drop-in can't be checked with `validate:`, so check the whole config first. Restart, not reload: on
+# Debian 13 sshd is socket-activated (ssh.socket), and a SIGHUP reload makes it re-bind port 22, which the
+# socket holds, so it dies. Open sessions survive a restart. /run/sshd may be gone while the service is
+# stopped, and `sshd -t` needs it. Skipped in check mode.
 - name: Reload ssh
-  ansible.builtin.shell: sshd -t && systemctl try-reload-or-restart ssh
+  ansible.builtin.shell: install -d -m 0755 /run/sshd && sshd -t && systemctl try-restart ssh.service
   changed_when: true
