@@ -40,4 +40,12 @@ jobs:
           sudo tar -xzf "$tgz" -C /usr/local/bin gitleaks
           pip install -r "$GITHUB_WORKSPACE/requirements-ci.txt"
       - run: make lint
+      - name: Pinned download hashes match their releases (a Renovate bump fails here until the hash is updated)
+        run: |
+          f=ansible/roles/common/defaults/main.yml
+          v=$(sed -n 's/^common_beszel_version: "\(.*\)"$/\1/p' $f)
+          pin=$(sed -n 's/^common_beszel_sha256: //p' $f)
+          want=$(curl -sSfL "https://github.com/henrygd/beszel/releases/download/v$v/beszel_${v}_checksums.txt" \
+            | awk '$2 == "beszel-agent_linux_amd64.tar.gz" {print $1}')
+          [ -n "$want" ] && [ "$pin" = "$want" ] || { echo "common_beszel_sha256 for $v should be $want"; exit 1; }
       - run: make ha-check

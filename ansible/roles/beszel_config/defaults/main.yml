@@ -1,0 +1,8 @@
+# Every host with a Beszel agent as a system in the hub, added through its API (only the missing ones,
+# by name; never removes). Your own devices (a Windows PC, ...) you add in the hub's UI.
+beszel_config_hosts: "{{ groups['pve_hosts'] + groups['lxcs'] }}"
+beszel_config_port: "45876"
+beszel_config_user: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/beszel/username') }}"
+beszel_config_password: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/beszel/password') }}"
+# Dockhand deploys the hub a few minutes after `make apps` on a fresh install: wait this long for it.
+beszel_config_wait_retries: 60

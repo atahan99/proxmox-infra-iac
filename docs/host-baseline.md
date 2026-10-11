@@ -23,7 +23,7 @@ disk UUID come from `homelab.env`.
 | Templates | Debian 13 and Ubuntu 26.04 via `pveam`, checked against Proxmox's signed index | So the OpenTofu token needs no `Sys.Modify` ([ADR 3](adr/3-root-only-steps-in-ansible.md)) |
 | HAOS image | HAOS 18.3 downloaded, SHA-256 checked, unpacked into `local:import/` | OpenTofu imports it as VM 102's disk |
 | OpenTofu user | `tofu@pve`, role `TofuApply`, ACLs | The tokens are made by hand, since their secret must go to the vault |
-| Monitoring | `monitoring@pve` (read-only), Scrutiny collector, Alloy (journal to Loki) | |
+| Monitoring | `monitoring@pve` (read-only), Scrutiny collector, Alloy (journal to Loki), Beszel agent (same as the LXCs) | |
 | Alerts | `ntfy` webhook target and a matcher for warnings and errors (failed backups); `homelab-backup-age` and `homelab-pending-updates` timers; any failed timer job (these included) sends its last log lines | Backups and manual upgrades must not fail or wait silently. The PBS role adds the same webhook in PBS |
 
 The pbs role adds the PBS storage and the backup job, since they need PBS running.

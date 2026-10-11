@@ -31,6 +31,13 @@
       matchStrings: ["image=(?<depName>[^:]+):(?<currentValue>[^@]+)@(?<currentDigest>sha256:[a-f0-9]+)"],
       datasourceTemplate: "docker",
     },
+    {
+      description: "Versions in Ansible defaults, marked with a `# renovate:` comment on the line above",
+      customType: "regex",
+      managerFilePatterns: ["/^ansible/roles/[^/]+/defaults/main\\.yml$/"],
+      matchStrings: ["# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\w+:\\s*\"?v?(?<currentValue>[^\"\\s]+)\"?"],
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
   ],
 
   packageRules: [
@@ -71,6 +78,11 @@
       description: "Immich images must move together",
       matchPackageNames: ["ghcr.io/immich-app/**"],
       groupName: "immich",
+    },
+    {
+      description: "Beszel: the hub, the agent containers and the systemd agents (common role) move together",
+      matchPackageNames: ["henrygd/beszel", "henrygd/beszel-agent"],
+      groupName: "beszel",
     },
     {
       description: "OpenTofu providers",

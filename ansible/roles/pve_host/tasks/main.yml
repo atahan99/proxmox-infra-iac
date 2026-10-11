@@ -137,3 +137,8 @@
 
 - name: Notify | Proxmox notifications, stale backups and pending upgrades to ntfy
   ansible.builtin.import_tasks: notify.yml
+
+- name: Monitoring | Beszel agent, the same one the LXCs run (host CPU, memory, disks, temperatures)
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: beszel.yml

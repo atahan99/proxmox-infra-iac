@@ -1,0 +1,48 @@
+# The hub isn't published on the host: its container address is used. The agent next to it (this host's)
+# is reached as beszel-agent on their shared network, every other one by its LAN address.
+- name: Beszel systems
+  when: beszel_config_hosts | length > 0
+  block:
+    - name: API | the hub's address (waits for Dockhand to deploy it)
+      ansible.builtin.command: docker inspect beszel -f '{{ "{{" }}(index .NetworkSettings.Networks "proxy").IPAddress{{ "}}" }}'
+      register: beszel_config_ip
+      until: beszel_config_ip.rc == 0 and beszel_config_ip.stdout | length > 0
+      retries: "{{ beszel_config_wait_retries }}"
+      delay: 10
+      changed_when: false
+      check_mode: false
+
+    - name: API | log in (your hub login, vault item beszel)
+      ansible.builtin.uri:
+        url: "http://{{ beszel_config_ip.stdout }}:8090/api/collections/users/auth-with-password"
+        method: POST
+        body_format: json
+        body: {identity: "{{ beszel_config_user }}", password: "{{ beszel_config_password }}"}
+      register: beszel_config_login
+      until: beszel_config_login.status == 200
+      retries: 30
+      delay: 5
+      no_log: true
+      check_mode: false
+
+    - name: API | current systems
+      ansible.builtin.uri:
+        url: "http://{{ beszel_config_ip.stdout }}:8090/api/collections/systems/records?perPage=500"
+        headers: {Authorization: "{{ beszel_config_login.json.token }}"}
+      register: beszel_config_systems
+      no_log: true
+      check_mode: false
+
+    - name: Systems | add the missing ones
+      ansible.builtin.uri:
+        url: "http://{{ beszel_config_ip.stdout }}:8090/api/collections/systems/records"
+        method: POST
+        headers: {Authorization: "{{ beszel_config_login.json.token }}"}
+        body_format: json
+        body:
+          name: "{{ item }}"
+          host: "{{ 'beszel-agent' if item == inventory_hostname else hostvars[item].ansible_host }}"
+          port: "{{ beszel_config_port }}"
+          users: ["{{ beszel_config_login.json.record.id }}"]
+      loop: "{{ beszel_config_hosts | difference(beszel_config_systems.json['items'] | map(attribute='name')) }}"
+      changed_when: true

@@ -4,8 +4,12 @@ common_updates: stable
 # Beszel agent as a systemd service. Docker hosts run it as a container instead (it needs the
 # Docker socket to see containers), so they set common_beszel: false.
 common_beszel: true
-common_beszel_version: "0.20.0"
-common_beszel_sha256: f03b8ec7349a8133a0329ef50619bc3a97a7bb0a0e423866416ecc818cebc43c
+# Renovate moves the version with the agent containers (group "beszel"). The hash is pinned here, so a
+# release changed after review is caught; CI fails until it matches the new version's checksums file
+# (copy it from there into the Renovate PR).
+# renovate: datasource=github-releases depName=henrygd/beszel
+common_beszel_version: "0.21.0"
+common_beszel_sha256: 898d67d456a4feed7d651bbac22def5eb41840d4f3d9bf058a5ed37c8c815599
 common_beszel_port: 45876
 # The hub's key pair lives in the vault: hub_pubkey here and in the agents' env, hub_key in the hub.
 common_beszel_hub_key: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/beszel/hub_pubkey') }}"

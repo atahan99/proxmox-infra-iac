@@ -75,6 +75,7 @@ all:
         core_stacks_authelia_user: lab
         core_stacks_authelia_email: lab@example.com
         oidc_remote_apps: [] # the lab has no PBS or Immich of its own
+        beszel_config_hosts: [] # no hub login in the lab
         memos_config_password: "{{ lookup('ansible.builtin.password', '.lab-secrets/memos-admin chars=ascii_letters,digits length=24') }}"
         core_stacks_ntfy_admin_user: lab
         core_stacks_ntfy_admin_password: "{{ lookup('ansible.builtin.password', '.lab-secrets/ntfy-lab chars=ascii_letters,digits length=24') }}"
