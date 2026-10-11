@@ -7,7 +7,7 @@ RUN = pass-cli run --env-file homelab.env --
 TOFU = PROXMOX_VE_API_TOKEN=pass://Homelab/proxmox-tofu-$(TOKEN)/password TF_WORKSPACE=$(ENV) $(RUN) tofu -chdir=tofu
 PLAYBOOK = $(RUN) ansible-playbook -i ansible/inventory/$(ENV).yml
 
-.PHONY: login init plan apply destroy guests devices-check config config-check apps release host-check host pin-kernel unpin-kernel lint leak-check ha-check ha-deploy
+.PHONY: login init plan apply destroy guests devices-check config config-check apps release host-check host pin-kernel unpin-kernel lint leak-check ha-check ha-deploy gatus-deploy
 
 # Read-only: what pve_host would change on the real host.
 host-check: login
@@ -96,6 +96,10 @@ ha-check:
 # git -> Home Assistant (VM 102) via the Terminal & SSH add-on; restarts HA.
 ha-deploy: login
 	$(RUN) homeassistant/deploy.sh
+
+# git -> Gatus on the RPi3 (outside the server: it alerts through ntfy.sh when the server is down).
+gatus-deploy: login
+	$(RUN) gatus/deploy.sh
 
 # The repo is public: no LAN address may be tracked, and (where homelab.env exists) none of its plain values.
 leak-check:

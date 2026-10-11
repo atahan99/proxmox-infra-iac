@@ -1,0 +1,164 @@
+# Gatus, on the RPi3 (a separate device, not a guest of this repo): watches the server from outside it,
+# so its alerts still arrive when the server is down (ntfy.sh, not the self-hosted ntfy). One check per
+# thing, at the highest layer it offers. The two Internet checks (Cloudflare, Quad9) tell an ISP outage
+# apart from a LAN problem: both down = the line. 3 failed checks in a row = alert.
+# `make gatus-deploy` writes homelab.env's addresses and NTFY_TOPIC (vault `gatus`) to /opt/gatus/.env on
+# the Pi; Gatus fills them in at start. After editing this file there, `docker compose restart`.
+alerting:
+  ntfy:
+    url: https://ntfy.sh
+    topic: "${NTFY_TOPIC}"
+    priority: 4
+    default-alert:
+      failure-threshold: 3
+      success-threshold: 2
+      send-on-resolved: true
+
+storage:
+  type: sqlite
+  path: /data/data.db
+
+ui:
+  title: HomeLab status
+  header: HomeLab
+
+endpoints:
+  - name: DNS VIP (what clients use)
+    group: DNS
+    interval: 60s
+    url: "${HOMELAB_DNS_VIP}"
+    dns:
+      query-name: google.com
+      query-type: A
+    conditions:
+      - "[DNS_RCODE] == NOERROR"
+    alerts:
+      - type: ntfy
+  - name: AdGuard primary (CT 106)
+    group: DNS
+    interval: 60s
+    url: "${HOMELAB_LAN_PREFIX}.4" # AdGuard primary, host number in tofu/prod.tfvars
+    dns:
+      query-name: google.com
+      query-type: A
+    conditions:
+      - "[DNS_RCODE] == NOERROR"
+    alerts:
+      - type: ntfy
+  - name: AdGuard backup (RPi3)
+    group: DNS
+    interval: 60s
+    url: "${RPI3_IP}"
+    dns:
+      query-name: google.com
+      query-type: A
+    conditions:
+      - "[DNS_RCODE] == NOERROR"
+    alerts:
+      - type: ntfy
+  - name: Internet (Cloudflare 1.1.1.1)
+    group: Network
+    interval: 60s
+    url: "icmp://1.1.1.1"
+    conditions:
+      - "[CONNECTED] == true"
+    alerts:
+      - type: ntfy
+  - name: Internet (Quad9 9.9.9.9)
+    group: Network
+    interval: 60s
+    url: "icmp://9.9.9.9"
+    conditions:
+      - "[CONNECTED] == true"
+    alerts:
+      - type: ntfy
+  - name: ISP router
+    group: Network
+    interval: 60s
+    url: "http://${MODEM_IP}/"
+    conditions:
+      - "[STATUS] < 300"
+    alerts:
+      - type: ntfy
+  - name: OpenWrt
+    group: Network
+    interval: 60s
+    url: "http://${HOMELAB_GATEWAY}/"
+    conditions:
+      - "[STATUS] < 300"
+    alerts:
+      - type: ntfy
+  - name: TP-Link switch
+    group: Network
+    interval: 60s
+    url: "http://${SWITCH_IP}/"
+    conditions:
+      - "[STATUS] < 300"
+    alerts:
+      - type: ntfy
+  - name: TP-Link AP main
+    group: Network
+    interval: 60s
+    url: "http://${AP2_IP}/"
+    conditions:
+      - "[STATUS] < 300"
+    alerts:
+      - type: ntfy
+  - name: TP-Link AP room
+    group: Network
+    interval: 60s
+    url: "http://${AP1_IP}/"
+    conditions:
+      - "[STATUS] < 300"
+    alerts:
+      - type: ntfy
+  - name: PiKVM
+    group: Network
+    interval: 60s
+    url: "https://${PIKVM_IP}/"
+    client:
+      insecure: true # self-signed certificate
+    conditions:
+      - "[STATUS] < 300"
+    alerts:
+      - type: ntfy
+  - name: Proxmox
+    group: Server
+    interval: 60s
+    url: "https://${PVE_IP}:8006/"
+    client:
+      insecure: true # self-signed certificate
+    conditions:
+      - "[STATUS] < 300"
+    alerts:
+      - type: ntfy
+  - name: Reverse proxy
+    group: Server
+    interval: 60s
+    url: "tcp://${HOMELAB_LAN_PREFIX}.122:443" # Traefik on docker-apps
+    conditions:
+      - "[CONNECTED] == true"
+    alerts:
+      - type: ntfy
+  - name: Homepage
+    group: Server
+    interval: 60s
+    url: "https://${HOMELAB_LAN_PREFIX}.122/" # Traefik directly: the Pi does not resolve the local names
+    # Behind Authelia: 302 (browsers) or 401 (other clients). Traefik answers 404 when Homepage is down.
+    client:
+      ignore-redirect: true
+      insecure: true # by IP, so the certificate name does not match
+    headers:
+      Host: homepage.${HOMELAB_DOMAIN}
+    conditions:
+      - "[STATUS] == any(302, 401)"
+    alerts:
+      - type: ntfy
+  - name: Home Assistant
+    group: Server
+    interval: 60s
+    url: "http://${HA_IP}:8123/"
+    conditions:
+      - "[STATUS] < 300"
+    alerts:
+      - type: ntfy

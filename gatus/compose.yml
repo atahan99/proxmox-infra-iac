@@ -1,0 +1,22 @@
+# Gatus on the RPi3: a separate device, outside the Proxmox server, so it still alerts when the server is
+# down. Not a Dockhand stack: `make gatus-deploy` copies this folder to /opt/gatus on the Pi. Endpoints are
+# in config.yaml; after editing it there, `docker compose restart` (a single-file mount doesn't see edits
+# reliably).
+name: gatus
+services:
+  gatus:
+    image: twinproduction/gatus:v5.37.0@sha256:094eb186e55235db367e90e9d56140e5897b7044c41de23cde4cc18e6da1242e
+    container_name: gatus
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file: [.env] # written by make gatus-deploy: addresses from homelab.env, NTFY_TOPIC from the vault
+    environment:
+      TZ: ${HOMELAB_TZ:?HOMELAB_TZ is set in .env}
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
+      - /opt/gatus/data:/data # SQLite: uptime history
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}

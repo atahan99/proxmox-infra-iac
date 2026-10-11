@@ -193,4 +193,5 @@ write-only token for `homelab-*`, so one can be revoked alone.
 | `homelab-personal` | changedetection, Wallos (set in each app's UI) |
 
 Gatus on the RPi3 watches DNS, the network gear and the server from outside. It alerts through ntfy.sh on
-a random topic, so its alerts still arrive when the server or Tailscale is down.
+a random topic, so its alerts still arrive when the server or Tailscale is down. Its config is in
+[`gatus/`](../gatus) (`make gatus-deploy`).
