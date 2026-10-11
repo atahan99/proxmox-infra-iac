@@ -13,5 +13,8 @@ Proxmox doesn't allow any token to do:
 **Why.** The apply token has no `Sys.Modify` and no `Datastore.AllocateTemplate`, so a leaked token can't
 reconfigure the node.
 
-**Cost.** A guest is complete only after `make guests`, which runs both tools. Image versions are pinned
+**Cost.** A guest is complete only after `make guests`, which runs both tools. Two creations still need
+`Sys.Modify` on `/`, which Proxmox gives no narrower form of: a privileged container (docker-hw) and a VM
+boot order (HAOS). The install grants it to the apply token through a temporary role for that one run and
+revokes it right after ([install.md](../runbooks/install.md#5-guests-5-min)). Image versions are pinned
 in the Ansible defaults and must match the tfvars.

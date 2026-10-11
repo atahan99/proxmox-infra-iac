@@ -29,7 +29,7 @@ switch is `switch.pc`.
 
 `make guests` creates VM 102, which boots to onboarding. Restore the latest backup from nas, install the
 Terminal & SSH add-on, then `make ha-deploy`. The Frigate integration's RTSP URL is in the
-[install runbook](runbooks/install.md#4-verify).
+[install runbook](runbooks/install.md#9-verify).
 
 ## Updates
 
