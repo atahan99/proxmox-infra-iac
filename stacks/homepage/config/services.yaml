@@ -86,7 +86,13 @@
         icon: vikunja.png
         href: https://vikunja.{{HOMEPAGE_VAR_DOMAIN}}
         siteMonitor: http://vikunja:3456
-        description: To-do lists # widget once Vikunja runs and has a token
+        description: To-do lists
+        widget:
+          type: vikunja
+          url: http://vikunja:3456
+          key: "{{HOMEPAGE_VAR_VIKUNJA_KEY}}"
+          version: 2 # Vikunja 1.0.0-rc4 and later
+          enableTaskList: true
 
     - Memos:
         icon: memos.png
@@ -259,6 +265,11 @@
         icon: openwrt
         href: http://{{HOMEPAGE_VAR_GATEWAY_IP}}
         description: Very Cool Router
+        widget:
+          type: openwrt
+          url: http://{{HOMEPAGE_VAR_GATEWAY_IP}}
+          username: "{{HOMEPAGE_VAR_OPENWRT_USERNAME}}" # read-only rpcd login (vault openwrt-homepage)
+          password: "{{HOMEPAGE_VAR_OPENWRT_PASSWORD}}"
 
     - ISP Modem:
         icon: huawei

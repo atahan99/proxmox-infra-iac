@@ -71,7 +71,8 @@ and run `make apps ENV=prod` again. They only feed Homepage widgets and the Prox
 | `freshrss` | `username`, `api_password` | Login + custom field (`api_password`, not the built-in password) | `homepage.env.tpl` | Placeholder until the rebuild, then FreshRSS → Settings → Profile → API password |
 | `mealie` | `username`, `password`, `api_key` | Login | `homepage.env.tpl` (`api_key`) | Login: fallback only (Mealie hides its password form; you log in through Authelia). `api_key`: Mealie → profile → API Tokens |
 | `memos` | `username` (your Authelia username), `password` | Login | `memos_config` role: creates the account, then its API login | Fallback login; day to day you use "Continue with Authelia" (linked once in Settings). Any strong password |
-| `vikunja` | `jwt_secret` | Other | `vikunja.env.tpl` | `openssl rand -hex 32` |
+| `vikunja` | `jwt_secret`, `api_key` | Other | `vikunja.env.tpl`, `homepage.env.tpl` | `jwt_secret`: `openssl rand -hex 32`. `api_key`: Vikunja → Settings → API Tokens, read-only on projects and tasks |
+| `openwrt-homepage` | `username` (`homepage`), `password` | Login | `homepage.env.tpl` | The router's read-only rpcd login for Homepage's widget (ACL `homepage` in `/usr/share/rpcd/acl.d/`, user in `/etc/config/rpcd`); the router isn't in this repo |
 | `convertx` | `jwt_secret` | Other | `convertx.env.tpl` | `openssl rand -hex 32` |
 | `searxng` | `secret_key` | Other | `searxng.env.tpl` | `openssl rand -hex 32` |
 | `filebrowser` | `password` | Login (username admin) | `filebrowser.env.tpl` | Generate |
