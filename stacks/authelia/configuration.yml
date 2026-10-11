@@ -77,3 +77,25 @@ identity_providers:
         redirect_uris:
           - 'https://vikunja.{{ env "DOMAIN" }}/auth/openid/authelia'
         scopes: [openid, profile, email]
+      - client_id: mealie
+        client_name: Mealie
+        client_secret: '{{ secret "/data/oidc/mealie.digest" }}'
+        public: false
+        authorization_policy: two_factor
+        consent_mode: implicit
+        require_pkce: true
+        pkce_challenge_method: S256
+        token_endpoint_auth_method: client_secret_basic
+        redirect_uris:
+          - 'https://mealie.{{ env "DOMAIN" }}/login'
+        scopes: [openid, profile, email, groups]
+      - client_id: memos
+        client_name: Memos
+        client_secret: '{{ secret "/data/oidc/memos.digest" }}'
+        public: false
+        authorization_policy: two_factor
+        consent_mode: implicit
+        token_endpoint_auth_method: client_secret_basic # Memos tries basic first (post only as a fallback)
+        redirect_uris:
+          - 'https://memos.{{ env "DOMAIN" }}/auth/callback'
+        scopes: [openid, profile, email]

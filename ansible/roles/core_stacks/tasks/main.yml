@@ -1,4 +1,4 @@
-# Apps that trust Authelia's Remote-User header (Dockhand, Forgejo, Linkding, Dozzle), and code-server (a
+# Apps that trust Authelia's Remote-User header (Dockhand, Forgejo, Linkding, Dozzle, FreshRSS, Beszel), and code-server (a
 # shell with only Authelia in front), get a network of their own with Traefik as the only other member, so
 # no other container can reach them.
 - name: Networks | proxy (Traefik <-> apps), socket-proxy (internal, no route out), one per header-trusting app
@@ -9,6 +9,8 @@
     - {name: dockhand, flags: ""} # Traefik <-> Dockhand only (Dockhand needs internet for git)
     - {name: forgejo, flags: --subnet 10.250.0.0/29} # fixed: Forgejo trusts this subnet's Remote-User
     - {name: linkding, flags: ""}
+    - {name: freshrss, flags: --subnet 10.250.0.8/29} # fixed: FreshRSS trusts this subnet's Remote-User
+    - {name: beszel-web, flags: --subnet 10.250.0.16/29} # fixed: Beszel trusts this subnet's Remote-Email
     - {name: dozzle, flags: ""}
     - {name: code-server, flags: ""} # no login of its own (Authelia only) and it is a shell
     - {name: monitoring, flags: ""} # Loki + Prometheus: only Traefik, Grafana, Alloy and Homepage reach them

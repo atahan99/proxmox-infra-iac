@@ -205,15 +205,15 @@ starts empty:
 |---|---|
 | Home Assistant | Onboarding: restore the latest backup (Terminal & SSH comes back with it), then `make ha-deploy`. HA keeps its proxy settings in `.storage/http`, not the YAML: if `https://homeassistant.<domain>` answers 400, set Settings → System → Network → trusted proxies to docker-apps (`<lan>.122`) |
 | Authelia | Log in and register 2FA. The one-time links: `ssh root@<PVE_IP> 'pct exec 109 -- docker exec authelia cat /data/notification.txt'` |
-| Beszel | Create the login from vault item `beszel`. Add the systems: docker-apps as host `beszel-agent`, every other LXC by IP, port 45876 |
+| Beszel | Create the login from vault item `beszel`, with the email from vault `authelia/email` (the hub trusts Authelia's `Remote-Email`, so that login is one-click; the password stays for Homepage). Add the systems: docker-apps as host `beszel-agent`, every other LXC by IP, port 45876 |
 | Immich | Nothing: library and database are on the USB disk |
 | Frigate | Settings → Users: the viewer from vault item `frigate` |
 | Forgejo | Mirror the GitHub repos with the token from `github-forgejo` |
 | changedetection | Add the watches, notifications to ntfy `homelab-personal` |
-| FreshRSS | Import the OPML |
-| Memos | Create the first account (it becomes admin), then turn off sign-ups |
-| Vikunja, Linkding | Nothing: the first Authelia login creates the user |
-| Mealie | Log in as `changeme@example.com` / `MyPassword`, change both |
+| FreshRSS | Create the user with Authelia's username, then switch it to Authelia's login: `ssh root@<PVE_IP> 'pct exec 109 -- docker exec -u abc freshrss php /app/www/cli/reconfigure.php --auth-type=http_auth'`. Import the OPML |
+| Memos | Nothing: `make apps` creates your account (Authelia's username, vault item `memos`), adds "Continue with Authelia" and closes sign-ups, once Dockhand has deployed it. Then link it once: sign in with the vault password, Settings → My account → Linked accounts → Authelia |
+| Vikunja, Linkding, Mealie | Nothing: the first Authelia login creates the user (Mealie makes Authelia's `admins` an admin) |
+| Mealie (local admin) | At `/login?direct=1` as `changeme@example.com` / `MyPassword`: change both, or delete it once the Authelia user is admin |
 | Calibre-Web | Log in as `admin` / `admin123`, change the password to vault item `calibre-web`'s (Admin → Edit user); Homepage's widget logs in with it |
 | Plex | Claim it from localhost: `ssh -L 32400:localhost:32400 root@$PLEX_IP`, open `http://localhost:32400/web`, add the libraries. Pair Tautulli |
 | Kasm | Nothing: `make config` installs it with the admin password from vault item `kasm` and creates the 8 workspaces and the ProtonVPN egress (`kasm-vpn`). Log in as `admin@kasm.local`. If sessions don't start: Admin → Infrastructure → Zones → Proxy Port 443 |

@@ -1,4 +1,6 @@
-# System stats: the hub (its data holds systems and users; its key comes from the vault) and this host's agent. The other LXCs
+# System stats: the hub (its data holds systems and users; its key comes from the vault) and this host's agent.
+# One login: the hub trusts Authelia's Remote-Email header from its beszel-web network only (the user's email
+# must match Authelia's). Password login stays for Homepage's widget, which comes in over proxy. The other LXCs
 # run the agent as a systemd service (common role); docker-hw runs it as a container (its own stack).
 # The hub reaches this agent at beszel-agent:45876 (add it in the hub as host "beszel-agent").
 name: beszel
@@ -9,13 +11,16 @@ services:
     restart: unless-stopped
     environment:
       APP_URL: https://beszel.${DOMAIN:?DOMAIN is set in the stack's .env}
+      TRUSTED_AUTH_HEADER: Remote-Email
+      TRUSTED_PROXY_IPS: 10.250.0.16/29 # the beszel-web network: Traefik is the only other member
     volumes:
       - /opt/appdata/beszel:/beszel_data
       # The hub's private key from the vault (Dozzle-style), so a rebuilt hub keeps the key every agent trusts
       - /opt/secrets/beszel_key.pem:/beszel_data/id_ed25519:ro
-    networks: [beszel, proxy]
+    networks: [beszel, beszel-web, proxy]
     labels:
       traefik.enable: "true"
+      traefik.docker.network: beszel-web
       traefik.http.routers.beszel.rule: Host(`beszel.${DOMAIN}`)
       traefik.http.routers.beszel.middlewares: authelia@file
       traefik.http.services.beszel.loadbalancer.server.port: "8090"
@@ -36,6 +41,8 @@ services:
 
 networks:
   beszel:
+  beszel-web:
+    external: true
   proxy:
     external: true
   socket-proxy:

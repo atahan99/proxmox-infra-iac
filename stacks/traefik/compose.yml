@@ -64,6 +64,8 @@ services:
       socket-proxy:
       forgejo:
       linkding:
+      freshrss:
+      beszel-web:
       dozzle:
       code-server:
       monitoring: # Prometheus/Loki routes, and Prometheus scrapes Traefik
@@ -95,6 +97,10 @@ networks:
   forgejo:
     external: true
   linkding:
+    external: true
+  freshrss:
+    external: true
+  beszel-web:
     external: true
   dozzle:
     external: true

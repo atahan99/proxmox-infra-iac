@@ -7,8 +7,8 @@
 - The one exception is Plex: the router forwards 32400 to its unprivileged LXC, outside Traefik. Plex's
   Traefik route strips the `Cookie` header, so Plex never sees the Authelia session cookie.
 - Authelia handles login with 2FA, as forward-auth in front of the apps and as the OIDC provider for
-  Dockhand, Grafana and Vikunja. The Authelia group `admins` is the admin in those apps. OIDC keys and
-  client secrets are generated on docker-apps and never leave it.
+  Dockhand, Grafana, Vikunja, Mealie and Memos. The Authelia group `admins` is the admin in those apps. OIDC
+  keys and client secrets are generated on docker-apps and never leave it.
 - The server only connects out: Dockhand pulls from GitHub, Renovate and CI run on GitHub. GitHub holds no
   deploy credentials.
 - A push to `main` deploys nothing. Only `make release` moves `deploy`, and only to a commit CI passed
@@ -41,6 +41,9 @@
   and Alloy go through `wollomatic/socket-proxy`, which allows only those clients and only GET on `_ping`,
   `version`, `info`, `events`, `networks` and container list, inspect, logs and stats.
 - Dockhand has its own network shared only with Traefik, so app containers can't reach its API.
+- Apps that trust Authelia's identity headers (Forgejo, Linkding, Dozzle, FreshRSS, Beszel) trust them only
+  from their own network, where Traefik is the only other member. FreshRSS and Beszel also sit on `proxy`
+  for Homepage's widgets; a forged header from there gets a 403 or 401.
 - Loki and Prometheus sit on a `monitoring` network that only Traefik, Grafana, Alloy and Homepage join.
 - Every Docker daemon sets `no-new-privileges` (except kasm, whose workspace images use sudo).
 - The Samba share has guest access off, and its user has no shell.
@@ -82,7 +85,7 @@ Every item and field in the vault, and how to create each, is in
 | Hawser tokens | Full Docker API on docker-hw or kasm, over TLS | On suspicion, both sides |
 | Dozzle agent certificate | Reads docker-hw's container logs (mutual TLS) | On suspicion |
 | Frigate RTSP login | Camera streams | On suspicion; update HA too |
-| OIDC client secrets | Dockhand, Grafana, Vikunja login | Regenerated on reinstall |
+| OIDC client secrets | Dockhand, Grafana, Vikunja, Mealie, Memos login | Regenerated on reinstall |
 | Tailscale auth key | First join only | Expires by itself |
 | Service secrets (Authelia, databases, keepalived, admin logins) | One item per stack, rendered to `/opt/secrets/<stack>.env` | On suspicion |
 

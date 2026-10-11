@@ -19,3 +19,4 @@
     - docker_engine
     - core_stacks
     - dockhand_config
+    - memos_config

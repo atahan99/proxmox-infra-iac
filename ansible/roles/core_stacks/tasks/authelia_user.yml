@@ -37,7 +37,7 @@
         {{ core_stacks_authelia_user }}:
           displayname: {{ core_stacks_authelia_user }}
           password: '{{ core_stacks_authelia_hash.stdout }}'
-          email: {{ core_stacks_authelia_user }}@{{ core_stacks_domain }}
+          email: {{ core_stacks_authelia_email }}
           groups: [admins]
     mode: "0600"
   register: core_stacks_authelia_file

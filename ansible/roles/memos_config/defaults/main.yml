@@ -1,0 +1,7 @@
+# Memos' first account, its Authelia sign-in and closed sign-ups, through Memos' API (pinned to the stack's
+# 0.31 image). Login: your Authelia username, the password from vault item `memos` as a fallback.
+memos_config_user: "{{ core_stacks_authelia_user }}"
+memos_config_password: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/memos/password') }}"
+memos_config_domain: "{{ core_stacks_domain }}"
+# Dockhand deploys Memos a few minutes after `make apps` on a fresh install: wait this long for it.
+memos_config_wait_retries: 60

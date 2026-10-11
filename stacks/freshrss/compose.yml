@@ -1,4 +1,6 @@
 # RSS reader. Feeds, users and the API password live in its data.
+# One login: Authelia in front, FreshRSS trusts its Remote-User header (auth type "HTTP", set once with
+# `./cli/reconfigure.php --auth-type http_auth`, kept in its data) from its own network only.
 # Its API (/api, used by phone RSS apps and the Homepage widget) has its own login, so it skips Authelia.
 name: freshrss
 services:
@@ -10,11 +12,13 @@ services:
       PUID: "1000"
       PGID: "1000"
       TZ: ${TZ}
+      TRUSTED_PROXY: 10.250.0.8/29 # the freshrss network: Traefik is the only other member
     volumes:
       - /opt/appdata/freshrss:/config
-    networks: [proxy]
+    networks: [freshrss, proxy] # proxy: Homepage's widget (API password, no header trust)
     labels:
       traefik.enable: "true"
+      traefik.docker.network: freshrss
       traefik.http.routers.freshrss.rule: Host(`freshrss.${DOMAIN:?DOMAIN is set in the stack's .env}`)
       traefik.http.routers.freshrss.middlewares: authelia@file
       traefik.http.routers.freshrss-api.rule: Host(`freshrss.${DOMAIN}`) && PathPrefix(`/api`)
@@ -22,5 +26,7 @@ services:
       traefik.http.services.freshrss.loadbalancer.server.port: "80"
 
 networks:
+  freshrss:
+    external: true
   proxy:
     external: true
