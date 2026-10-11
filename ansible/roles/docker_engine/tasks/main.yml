@@ -38,3 +38,8 @@
     enabled: true
     state: started
   ignore_errors: "{{ ansible_check_mode }}"
+
+# Restart now, not at the end of the play: by then Dockhand is deploying every git stack, and a Docker
+# restart kills those deploys halfway.
+- name: Daemon | apply a changed daemon.json before anything runs on this engine
+  ansible.builtin.meta: flush_handlers

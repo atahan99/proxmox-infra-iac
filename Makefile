@@ -48,10 +48,11 @@ pin-kernel: login
 unpin-kernel: login
 	$(RUN) bash -c 'ssh root@$$PVE_IP proxmox-boot-tool kernel unpin'
 
-# PAT sessions last 2h; re-login from the macOS Keychain when needed.
+# PAT sessions last 2h; re-login from the macOS Keychain when needed. An expired session still counts as
+# "authenticated" and refuses a new login, so log out first.
 login:
-	@pass-cli vault list >/dev/null 2>&1 || \
-	  PROTON_PASS_PERSONAL_ACCESS_TOKEN="$$(security find-generic-password -s proton-pass-pat -w)" pass-cli login
+	@pass-cli vault list >/dev/null 2>&1 || { pass-cli logout >/dev/null 2>&1; \
+	  PROTON_PASS_PERSONAL_ACCESS_TOKEN="$$(security find-generic-password -s proton-pass-pat -w)" pass-cli login; }
 
 init: login
 	$(RUN) tofu -chdir=tofu init -input=false

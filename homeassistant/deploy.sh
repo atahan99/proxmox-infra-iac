@@ -5,6 +5,9 @@
 set -euo pipefail
 ha=root@${HA_IP:?run through make ha-deploy (HA_IP comes from homelab.env)}
 cd "$(dirname "$0")/config"
+# First contact after a rebuild: trust the add-on's new host key (like Ansible's accept-new for the LXCs).
+# Every ssh below feeds data on stdin, so an interactive host-key prompt there would hang.
+ssh() { command ssh -o StrictHostKeyChecking=accept-new "$@"; }
 
 # ${VAR} from homelab.env (make runs this under pass-cli run); a missing one fails here, before HA is touched.
 export HOMELAB_LAN_PREFIX=${HOMELAB_LAN_CIDR%.*/*}
