@@ -20,10 +20,8 @@
   ansible.builtin.shell: |
     set -eo pipefail
     u='{{ oidc_remote_user }}@authelia'
-    proxmox-backup-manager user list --output-format json | grep -q "\"userid\":\"$u\"" && exit 0
-    proxmox-backup-manager user create "$u" --comment Authelia
-    proxmox-backup-manager acl update / Admin --auth-id "$u"
-    echo changed
+    proxmox-backup-manager user list --output-format json | grep -q "\"userid\":\"$u\"" || { proxmox-backup-manager user create "$u" --comment Authelia; echo changed; }
+    proxmox-backup-manager acl list --output-format json | grep -q "\"ugid\":\"$u\"" || { proxmox-backup-manager acl update / Admin --auth-id "$u"; echo changed; }
   args:
     executable: /bin/bash
   delegate_to: "{{ groups['pbs_servers'][0] }}"

@@ -9,7 +9,7 @@ pve_host_tofu_apply_privs: >-
 # VMs whose disks the plan token may read. Proxmox only shows a VM's disk volumes to who holds
 # VM.Config.Disk on that VM, and the provider reads them on every refresh (bpg/proxmox 0.116). So the
 # otherwise read-only plan token gets that one privilege on the VMs only (HAOS), not on the containers.
-pve_host_tofu_plan_disk_vms: [102]
+pve_host_tofu_plan_disk_vms: [102] # = vms.haos.vmid in tofu/prod.tfvars: keep them in step
 
 pve_host_legacy_files:
   - /etc/apt/sources.list.d/ceph.sources

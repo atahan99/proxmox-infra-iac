@@ -18,34 +18,43 @@
         method: POST
         body_format: json
         body: {identity: "{{ beszel_config_user }}", password: "{{ beszel_config_password }}"}
+        status_code: [200, 400] # 400: no such login yet (it's made by hand in the hub, install.md step 8)
       register: beszel_config_login
-      until: beszel_config_login.status == 200
+      until: beszel_config_login.status in [200, 400]
       retries: 30
       delay: 5
       no_log: true
       check_mode: false
 
-    - name: API | current systems
-      ansible.builtin.uri:
-        url: "http://{{ beszel_config_ip.stdout }}:8090/api/collections/systems/records?perPage=500"
-        headers: {Authorization: "{{ beszel_config_login.json.token }}"}
-      register: beszel_config_systems
-      no_log: true
-      check_mode: false
+    - name: API | no hub login yet
+      ansible.builtin.debug:
+        msg: No Beszel login matches vault authelia/email + beszel/password yet. Create it (install.md step 8), then run `make apps` again to add the systems.
+      when: beszel_config_login.status == 400
 
-    - name: Systems | add the missing ones
-      ansible.builtin.uri:
-        url: "http://{{ beszel_config_ip.stdout }}:8090/api/collections/systems/records"
-        method: POST
-        headers: {Authorization: "{{ beszel_config_login.json.token }}"}
-        body_format: json
-        body:
-          name: "{{ item }}"
-          host: "{{ 'beszel-agent' if item == inventory_hostname else hostvars[item].ansible_host }}"
-          port: "{{ beszel_config_port }}"
-          users: ["{{ beszel_config_login.json.record.id }}"]
-      loop: "{{ beszel_config_hosts | difference(beszel_config_systems.json['items'] | map(attribute='name')) }}"
-      loop_control:
-        label: "{{ item }}"
-      changed_when: true
-      no_log: true # the request carries the session token
+    - name: Systems
+      when: beszel_config_login.status == 200
+      block:
+        - name: API | current systems
+          ansible.builtin.uri:
+            url: "http://{{ beszel_config_ip.stdout }}:8090/api/collections/systems/records?perPage=500"
+            headers: {Authorization: "{{ beszel_config_login.json.token }}"}
+          register: beszel_config_systems
+          no_log: true
+          check_mode: false
+
+        - name: Systems | add the missing ones
+          ansible.builtin.uri:
+            url: "http://{{ beszel_config_ip.stdout }}:8090/api/collections/systems/records"
+            method: POST
+            headers: {Authorization: "{{ beszel_config_login.json.token }}"}
+            body_format: json
+            body:
+              name: "{{ item }}"
+              host: "{{ 'beszel-agent' if item == inventory_hostname else hostvars[item].ansible_host }}"
+              port: "{{ beszel_config_port }}"
+              users: ["{{ beszel_config_login.json.record.id }}"]
+          loop: "{{ beszel_config_hosts | difference(beszel_config_systems.json['items'] | map(attribute='name')) }}"
+          loop_control:
+            label: "{{ item }}"
+          changed_when: true
+          no_log: true # the request carries the session token

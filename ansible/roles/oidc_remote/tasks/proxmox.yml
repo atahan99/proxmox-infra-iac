@@ -21,10 +21,8 @@
   ansible.builtin.shell: |
     set -eo pipefail
     u='{{ oidc_remote_user }}@authelia'
-    pveum user list --output-format json | grep -q "\"userid\":\"$u\"" && exit 0
-    pveum user add "$u" --comment Authelia
-    pveum acl modify / --users "$u" --roles Administrator
-    echo changed
+    pveum user list --output-format json | grep -q "\"userid\":\"$u\"" || { pveum user add "$u" --comment Authelia; echo changed; }
+    pveum acl list --output-format json | grep -q "\"ugid\":\"$u\"" || { pveum acl modify / --users "$u" --roles Administrator; echo changed; }
   args:
     executable: /bin/bash
   delegate_to: "{{ groups['pve_hosts'][0] }}"

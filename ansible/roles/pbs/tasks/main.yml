@@ -63,6 +63,21 @@
     name: proxmox-backup-server
     update_cache: "{{ pbs_repos is changed }}"
 
+# The package pulls in the ZFS tools; ZFS needs a kernel module a container can't load, so these units
+# only fail (and show as failed). The datastore is a plain directory on the USB disk.
+- name: Package | mask ZFS units (no ZFS in a container)
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    masked: true
+  loop: [zfs-mount.service, zfs-share.service, zfs-zed.service, zfs-import-cache.service, zfs-import-scan.service, zfs-volume-wait.service]
+  register: pbs_zfs_masked
+  ignore_errors: "{{ ansible_check_mode }}" # the package (and its units) is only simulated in check mode
+
+- name: Package | clear the failures the ZFS units left at install
+  ansible.builtin.command: systemctl reset-failed
+  when: pbs_zfs_masked is changed and not ansible_check_mode
+  changed_when: false
+
 - name: UI | apt hook that keeps the subscription pop-up removed
   ansible.builtin.copy:
     src: 86pbs-no-nag

@@ -29,6 +29,7 @@ services:
       # Traefik's alias on `proxy`, so Dockhand itself stays off that network.
       traefik.http.routers.dockhand-stats.rule: Host(`dockhand.${DOMAIN}`) && Path(`/api/dashboard/stats`)
       traefik.http.routers.dockhand-stats.service: dockhand
+      traefik.http.routers.dockhand-stats.middlewares: lan-tailscale-docker@file
       traefik.http.services.dockhand.loadbalancer.server.port: "3000"
 
 networks:

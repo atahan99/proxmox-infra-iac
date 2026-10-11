@@ -157,6 +157,23 @@
   when: item.0 not in (dockhand_config_state.results[3].json | map(attribute='stackName'))
   changed_when: true
   no_log: "{{ not (dockhand_config_debug | default(false) | bool) }}" # the session cookie
+
+# Dockhand redeploys on a git change, not when core_stacks re-rendered a stack's secrets (e.g. Homepage after
+# you filled an api_key): redeploy those, on every host. Names come from core_stacks_touched of each host.
+- name: Git stacks | redeploy the existing ones whose secrets changed
+  ansible.builtin.uri:
+    url: "{{ dockhand_config_url }}/api/git/stacks/{{ item.id }}/deploy"
+    method: POST
+    headers: {Cookie: "{{ dockhand_config_login.cookies_string }}"}
+    status_code: [200, 201]
+    timeout: 600
+  vars:
+    dockhand_config_touched: "{{ ([inventory_hostname] + dockhand_config_remotes | map(attribute='name')) | map('extract', hostvars) | map(attribute='core_stacks_touched', default=[]) | flatten }}"
+  loop: "{{ dockhand_config_state.results[3].json | selectattr('stackName', 'in', dockhand_config_touched) | list }}"
+  loop_control:
+    label: "{{ item.stackName }}"
+  changed_when: true
+  no_log: "{{ not (dockhand_config_debug | default(false) | bool) }}" # the session cookie
 # Single sign-on: Authelia as OIDC provider. With OIDC_AUTOLOGIN the login page goes straight to
 # Authelia; members of the Authelia group `admins` become Dockhand admins. The local admin above stays
 # for this role (and as the fallback: /login?local=1).

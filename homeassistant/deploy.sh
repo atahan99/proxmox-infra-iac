@@ -15,4 +15,13 @@ secrets=$(python3 -c 'import os, re, sys
 print(re.sub(r"\$\{(\w+)\}", lambda m: os.environ[m.group(1)], sys.stdin.read()), end="")' <secrets.yaml.tpl)
 ssh "$ha" 'umask 077 && cat >/config/secrets.yaml' <<<"$secrets"
 COPYFILE_DISABLE=1 tar --no-xattrs --exclude secrets.yaml.tpl -cf - . | ssh "$ha" 'tar -C /config -xf -'
-ssh "$ha" 'ha core check && ha core restart'
+# HA keeps its proxy settings in .storage/http (UI), which wins over the YAML `http:` block once it exists
+# (it comes back with the backup, still naming the old proxy). Set Traefik's address there, with Core stopped.
+proxy=${HOMELAB_LAN_PREFIX}.122/32 # docker-apps, as docker_apps_ip in secrets.yaml.tpl
+ssh "$ha" 'ha core check'
+ssh "$ha" "f=/config/.storage/http
+if [ -f \$f ] && [ \"\$(jq -c '.data.stable | [.trusted_proxies, .login_attempts_threshold]' \$f)\" != '[[\"$proxy\"],5]' ]; then
+  ha core stop && jq '.data.stable.trusted_proxies = [\"$proxy\"] | .data.stable.login_attempts_threshold = 5' \$f >\$f.new && mv \$f.new \$f && ha core start
+else
+  ha core restart
+fi"

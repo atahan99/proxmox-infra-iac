@@ -26,3 +26,7 @@
   changed_when: "'changed' in calibre_config_result.stdout"
   notify: Restart Calibre-Web
   no_log: true
+
+# Restart now: a later role failing would skip an end-of-play handler, and later runs report "ok".
+- name: OIDC | apply
+  ansible.builtin.meta: flush_handlers

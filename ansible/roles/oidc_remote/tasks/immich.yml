@@ -6,6 +6,9 @@
     headers: {x-api-key: "{{ oidc_remote_immich_key }}"}
   delegate_to: localhost
   register: oidc_remote_immich_config
+  until: oidc_remote_immich_config.status == 200 # Dockhand deploys Immich a few minutes after `make apps`
+  retries: 60
+  delay: 10
   no_log: true
   check_mode: false
 

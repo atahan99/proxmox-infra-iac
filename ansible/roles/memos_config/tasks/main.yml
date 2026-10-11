@@ -28,6 +28,10 @@
   changed_when: true
   no_log: true
 
+- name: Setup | a dry run on a fresh Memos stops here (no account to sign in with yet)
+  ansible.builtin.meta: end_role
+  when: ansible_check_mode and memos_config_profile.json.needsSetup | default(false)
+
 - name: API | sign in
   ansible.builtin.uri:
     url: "http://{{ memos_config_ip.stdout }}:5230/api/v1/auth/signin"
