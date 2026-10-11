@@ -5,7 +5,7 @@
 name: forgejo
 services:
   forgejo:
-    image: codeberg.org/forgejo/forgejo:16.0.5@sha256:5effb7305584aca479b29fde6f9631a6dbe86ae798ae02eeea33a3666f0c0bf8
+    image: code.forgejo.org/forgejo/forgejo:16.0.5@sha256:5effb7305584aca479b29fde6f9631a6dbe86ae798ae02eeea33a3666f0c0bf8
     container_name: forgejo
     restart: unless-stopped
     environment:
