@@ -170,7 +170,7 @@ PBS token for Homepage's widget, copied to the clipboard:
 ssh root@$(sed -n 's/^PVE_IP=//p' homelab.env) 'pct exec 108 -- proxmox-backup-manager user generate-token root@pam homepage --expire $(date -d "+1 year" +%s)' | sed 's/^Result: //' | jq -r .value | pbcopy
 ```
 ```bash
-ssh root@$(sed -n 's/^PVE_IP=//p' homelab.env) 'pct exec 108 -- proxmox-backup-manager acl update /datastore/PVE-BCP DatastoreAudit --auth-id "root@pam!homepage"'
+ssh root@$(sed -n 's/^PVE_IP=//p' homelab.env) 'for path in "/datastore/PVE-BCP DatastoreAudit" "/system Audit"; do pct exec 108 -- proxmox-backup-manager acl update $path --auth-id "root@pam!homepage"; done'
 ```
 
 Vault item `pbs-homepage`: `username` = `root@pam!homepage`, `password` = the clipboard.
@@ -203,7 +203,7 @@ starts empty:
 
 | Service | First run |
 |---|---|
-| Home Assistant | Onboarding: restore the latest backup, install Terminal & SSH (your public key in its options), then `make ha-deploy` |
+| Home Assistant | Onboarding: restore the latest backup (Terminal & SSH comes back with it), then `make ha-deploy`. HA keeps its proxy settings in `.storage/http`, not the YAML: if `https://homeassistant.<domain>` answers 400, set Settings → System → Network → trusted proxies to docker-apps (`<lan>.122`) |
 | Authelia | Log in and register 2FA. The one-time links: `ssh root@<PVE_IP> 'pct exec 109 -- docker exec authelia cat /data/notification.txt'` |
 | Beszel | Create the login from vault item `beszel`. Add the systems: docker-apps as host `beszel-agent`, every other LXC by IP, port 45876 |
 | Immich | Nothing: library and database are on the USB disk |
@@ -214,10 +214,18 @@ starts empty:
 | Memos | Create the first account (it becomes admin), then turn off sign-ups |
 | Vikunja, Linkding | Nothing: the first Authelia login creates the user |
 | Mealie | Log in as `changeme@example.com` / `MyPassword`, change both |
+| Calibre-Web | Log in as `admin` / `admin123`, change the password (Admin → Edit user) |
 | Plex | Claim it from localhost: `ssh -L 32400:localhost:32400 root@$PLEX_IP`, open `http://localhost:32400/web`, add the libraries. Pair Tautulli |
-| Kasm | Log in as `admin@kasm.local` with the password in `/root/kasm-install-logins` on CT 103, change it. Add the 8 workspaces and the ProtonVPN egress (vault item `kasm-vpn`). If sessions don't start: Admin → Infrastructure → Zones → Proxy Port 443 |
+| Kasm | Log in as `admin@kasm.local` with the password in `/root/kasm-install-logins` on CT 103, change it. Add the 8 workspaces and the ProtonVPN egress: Admin → Egress Providers → WireGuard, then a gateway whose config is vault item `kasm-vpn` (the note, with the password field as its `PrivateKey`; see below). If sessions don't start: Admin → Infrastructure → Zones → Proxy Port 443 |
 | RustDesk | Give the new public key (`/opt/appdata/rustdesk/hbbs/id_ed25519.pub` on docker-apps) to every client |
 | Tailscale | Admin console: approve the subnet route and exit node, turn off key expiry for `tailscale` |
+
+Kasm's WireGuard config, assembled from the vault onto the clipboard (the note's `PrivateKey` line is empty;
+the key is the item's password):
+
+```bash
+k=$(pass-cli item view pass://Homelab/kasm-vpn/password); pass-cli item view pass://Homelab/kasm-vpn/note | K="$k" awk '/^PrivateKey[[:space:]]*=/{print "PrivateKey = " ENVIRON["K"]; next} {print}' | pbcopy; unset k
+```
 
 Last, replace the `changeme` placeholders in the vault with the real keys
 ([credentials.md](credentials.md#filling-the-vault-for-a-fresh-install)) and run `make apps ENV=prod` again
