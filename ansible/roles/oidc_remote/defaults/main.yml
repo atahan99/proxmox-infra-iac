@@ -4,5 +4,5 @@ oidc_remote_apps: [proxmox, pbs, immich]
 oidc_remote_issuer: https://auth.{{ core_stacks_domain }}
 # Your Authelia username becomes <user>@authelia in Proxmox and PBS, with full admin rights.
 oidc_remote_user: "{{ core_stacks_authelia_user }}"
-oidc_remote_immich_url: http://{{ hostvars[groups['docker_hw'][0]].ansible_host }}:2283
+oidc_remote_immich_url: https://immich.{{ core_stacks_domain }} # through Traefik: the API key and secret stay in TLS
 oidc_remote_immich_key: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/immich/api_key') }}"
