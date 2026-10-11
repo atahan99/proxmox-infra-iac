@@ -160,7 +160,7 @@ in vault item `tailscale` → `password` (single-use, it expires). Then:
 make config ENV=prod
 ```
 
-`common` on every LXC, then Tailscale, Samba, AdGuard with keepalived and sync, Plex, PBS, Kasm and ClamAV.
+`common` on every LXC, then Tailscale, Samba, AdGuard with keepalived and sync, Plex, PBS, Kasm (with its workspaces and VPN egress) and ClamAV.
 PBS re-attaches the datastore on the USB disk and hands the old backup groups to the new token, which takes
 several minutes the first time.
 
@@ -216,16 +216,9 @@ starts empty:
 | Mealie | Log in as `changeme@example.com` / `MyPassword`, change both |
 | Calibre-Web | Log in as `admin` / `admin123`, change the password (Admin → Edit user) |
 | Plex | Claim it from localhost: `ssh -L 32400:localhost:32400 root@$PLEX_IP`, open `http://localhost:32400/web`, add the libraries. Pair Tautulli |
-| Kasm | Log in as `admin@kasm.local` with the password in `/root/kasm-install-logins` on CT 103, change it. Add the 8 workspaces and the ProtonVPN egress: Admin → Egress Providers → WireGuard, then a gateway whose config is vault item `kasm-vpn` (the note, with the password field as its `PrivateKey`; see below). If sessions don't start: Admin → Infrastructure → Zones → Proxy Port 443 |
+| Kasm | Nothing: `make config` installs it with the admin password from vault item `kasm` and creates the 8 workspaces and the ProtonVPN egress (`kasm-vpn`). Log in as `admin@kasm.local`. If sessions don't start: Admin → Infrastructure → Zones → Proxy Port 443 |
 | RustDesk | Give the new public key (`/opt/appdata/rustdesk/hbbs/id_ed25519.pub` on docker-apps) to every client |
 | Tailscale | Admin console: approve the subnet route and exit node, turn off key expiry for `tailscale` |
-
-Kasm's WireGuard config, assembled from the vault onto the clipboard (the note's `PrivateKey` line is empty;
-the key is the item's password):
-
-```bash
-k=$(pass-cli item view pass://Homelab/kasm-vpn/password); pass-cli item view pass://Homelab/kasm-vpn/note | K="$k" awk '/^PrivateKey[[:space:]]*=/{print "PrivateKey = " ENVIRON["K"]; next} {print}' | pbcopy; unset k
-```
 
 Last, replace the `changeme` placeholders in the vault with the real keys
 ([credentials.md](credentials.md#filling-the-vault-for-a-fresh-install)) and run `make apps ENV=prod` again

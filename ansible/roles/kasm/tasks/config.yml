@@ -1,0 +1,153 @@
+# Workspaces and VPN egress, through the admin API Kasm's own web UI uses (undocumented, so pinned to
+# kasm_version; Kasm: "any JSON API utilized by the GUI can also be instrumented"). Creates what's missing,
+# matched by name; never updates or deletes, so changes made in the UI stay. Kasm's own API on loopback
+# with its self-signed certificate. Its list calls ignore filters such as egress_provider_id: results are
+# filtered here.
+- name: API | log in as admin (retries while a fresh install starts)
+  ansible.builtin.uri:
+    url: "{{ kasm_api }}/authenticate"
+    method: POST
+    body_format: json
+    body: {username: "{{ kasm_admin_user }}", password: "{{ kasm_admin_password }}"}
+    validate_certs: false # loopback to Kasm's own self-signed certificate
+  register: kasm_login
+  until: kasm_login.json.token is defined
+  retries: 30
+  delay: 10
+  no_log: true
+  check_mode: false
+
+- name: API | session
+  ansible.builtin.set_fact:
+    kasm_auth: {username: "{{ kasm_admin_user }}", token: "{{ kasm_login.json.token }}"}
+  no_log: true
+
+- name: API | current workspaces, groups, egress providers, gateways, credentials
+  ansible.builtin.uri:
+    url: "{{ kasm_api }}/admin/{{ item }}"
+    method: POST
+    body_format: json
+    body: "{{ kasm_auth }}"
+    validate_certs: false
+  loop: [get_images, get_groups, get_egress_providers, get_egress_gateways, get_egress_credentials]
+  register: kasm_state
+  no_log: true # the request carries the session token
+  check_mode: false
+
+- name: Plan | what's missing (created below; a dry run stops here)
+  ansible.builtin.debug:
+    msg:
+      workspaces: "{{ kasm_workspaces | map(attribute='friendly_name') | difference(kasm_state.results[0].json.images | map(attribute='friendly_name')) }}"
+      egress_provider: "{{ kasm_egress | length > 0 and kasm_egress.provider not in (kasm_state.results[2].json.egress_providers | map(attribute='name')) }}"
+      egress_gateway: "{{ kasm_egress | length > 0 and kasm_egress.gateway.name not in (kasm_state.results[3].json.egress_gateways | map(attribute='name')) }}"
+      egress_credential: "{{ kasm_egress | length > 0 and kasm_egress.credential not in (kasm_state.results[4].json.egress_credentials | map(attribute='name')) }}"
+
+- name: Workspaces | create the missing ones
+  ansible.builtin.uri:
+    url: "{{ kasm_api }}/admin/create_image"
+    method: POST
+    body_format: json
+    body: "{{ kasm_auth | combine({'target_image': kasm_workspace_defaults | combine(item | dict2items | rejectattr('key', 'eq', 'browser') | items2dict) | combine({'exec_config': (kasm_browser_exec_config if item.browser | default(false) else {}) | to_json, 'categories': item.categories | join('\n')})}) }}"
+    validate_certs: false
+  loop: "{{ kasm_workspaces }}"
+  loop_control:
+    label: "{{ item.friendly_name }}"
+  when: item.friendly_name not in (kasm_state.results[0].json.images | map(attribute='friendly_name'))
+  register: kasm_created_images
+  failed_when: kasm_created_images.json.error_message is defined
+  changed_when: true
+  no_log: true # the request carries the session token
+
+- name: Egress
+  when: kasm_egress | length > 0
+  vars:
+    kasm_providers: "{{ kasm_state.results[2].json.egress_providers }}"
+    kasm_group_id: "{{ (kasm_state.results[1].json.groups | selectattr('name', 'eq', kasm_egress.group) | first).group_id }}"
+  block:
+    - name: Egress | provider
+      ansible.builtin.uri:
+        url: "{{ kasm_api }}/admin/create_egress_provider"
+        method: POST
+        body_format: json
+        body: "{{ kasm_auth | combine({'target_egress_provider': {'name': kasm_egress.provider, 'egress_provider_type': 'wireguard', 'enabled': true}}) }}"
+        validate_certs: false
+      when: kasm_egress.provider not in (kasm_providers | map(attribute='name'))
+      register: kasm_new_provider
+      failed_when: kasm_new_provider.json.error_message is defined
+      changed_when: true
+      no_log: true
+
+    - name: Egress | provider id
+      ansible.builtin.set_fact:
+        kasm_provider_id: >-
+          {{ kasm_new_provider.json.egress_provider.egress_provider_id if kasm_new_provider is not skipped
+             else (kasm_providers | selectattr('name', 'eq', kasm_egress.provider) | first).egress_provider_id }}
+      # In check mode a missing provider has no id yet; the steps below then only report.
+      when: not (ansible_check_mode and kasm_new_provider is skipped and kasm_egress.provider not in (kasm_providers | map(attribute='name')))
+
+    - name: Egress | gateway (the vault's WireGuard config without its PrivateKey line)
+      ansible.builtin.uri:
+        url: "{{ kasm_api }}/admin/create_egress_gateway"
+        method: POST
+        body_format: json
+        body: "{{ kasm_auth | combine({'target_egress_gateway': kasm_egress.gateway | combine({'enabled': true, 'config': kasm_egress.config, 'egress_provider_id': kasm_provider_id})}) }}"
+        validate_certs: false
+      when: >-
+        kasm_provider_id is not defined or
+        kasm_egress.gateway.name not in (kasm_state.results[3].json.egress_gateways
+          | selectattr('egress_provider_id', 'eq', kasm_provider_id) | map(attribute='name'))
+      register: kasm_new_gateway
+      failed_when: kasm_new_gateway.json.error_message is defined
+      changed_when: true
+      no_log: true # WireGuard config and session token
+
+    - name: Egress | credential for the group (the WireGuard private key)
+      ansible.builtin.uri:
+        url: "{{ kasm_api }}/admin/create_egress_credential"
+        method: POST
+        body_format: json
+        body: >-
+          {{ kasm_auth | combine({'target_egress_credential': {
+               'name': kasm_egress.credential, 'enabled': true, 'egress_provider_id': kasm_provider_id,
+               'group_id': kasm_group_id, 'allow_all_gateways': true, 'wireguard_private_key': kasm_egress.private_key,
+               'limit_active_connections': false, 'active_connection_limit': 0}}) }}
+        validate_certs: false
+      when: >-
+        kasm_provider_id is not defined or
+        kasm_egress.credential not in (kasm_state.results[4].json.egress_credentials
+          | selectattr('egress_provider_id', 'eq', kasm_provider_id) | map(attribute='name'))
+      register: kasm_new_credential
+      failed_when: kasm_new_credential.json.error_message is defined
+      changed_when: true
+      no_log: true # private key and session token
+
+    - name: Egress | the group's provider mappings
+      ansible.builtin.uri:
+        url: "{{ kasm_api }}/admin/get_egress_provider_mappings"
+        method: POST
+        body_format: json
+        body: "{{ kasm_auth | combine({'group_id': kasm_group_id}) }}"
+        validate_certs: false
+      register: kasm_mappings
+      no_log: true
+      check_mode: false
+
+    - name: Egress | provider for the group (every gateway; users pick one at launch)
+      ansible.builtin.uri:
+        url: "{{ kasm_api }}/admin/create_egress_provider_mapping"
+        method: POST
+        body_format: json
+        body: >-
+          {{ kasm_auth | combine({'target_egress_provider_mapping': {
+               'egress_provider_id': kasm_provider_id, 'group_id': kasm_group_id,
+               'enabled': true, 'allow_all_gateways': true}}) }}
+        validate_certs: false
+      when: >-
+        kasm_provider_id is not defined or
+        not (kasm_mappings.json.egress_provider_mappings
+          | selectattr('group_id', 'eq', kasm_group_id)
+          | selectattr('egress_provider_id', 'eq', kasm_provider_id) | list)
+      register: kasm_new_mapping
+      failed_when: kasm_new_mapping.json.error_message is defined
+      changed_when: true
+      no_log: true

@@ -1,5 +1,5 @@
-# Kasm installs with its own installer and starts empty: workspaces and egress are set up by hand in its
-# admin UI (docs/runbooks/install.md), first login from /root/kasm-install-logins.
+# Kasm installs with its own installer; tasks/config.yml then creates the workspaces and the VPN egress
+# through Kasm's admin API (only what's missing, never deletes). Admin login: vault item `kasm`.
 kasm_version: 1.19.0
 # From Kasm's own .sha256sum next to the tarball (their docs page lists an older value).
 kasm_sha256: 8caaa12d97fdd0c20b39b10f50ebe2e0da1951b22a427c60a06491a9ed515d6d
@@ -7,7 +7,7 @@ kasm_port: 443
 # --no-images: workspace images are pulled by the agent for the workspaces you add, not all defaults.
 # --skip-v4l2loopback: needs a kernel module, which an LXC can't load.
 # Egress stays on: its sidecar network plugin carries the optional ProtonVPN gateway (picked per session
-# at launch, set up in Kasm's admin UI). WireGuard comes from the host kernel (pve_host loads the module).
+# at launch, set up by tasks/config.yml). WireGuard comes from the host kernel (pve_host loads the module).
 # --ignore-dep-failures: in an LXC `modprobe wireguard` always fails, and the installer's fallback
 # (`$(apt-get install wireguard)`, 1.19) runs apt's output as a command, so it reports a failure even
 # though the tools install and the host's module works. Its other optional step is the rclone plugin.
@@ -16,3 +16,97 @@ kasm_install_flags: [--no-images, --skip-v4l2loopback, --ignore-dep-failures]
 # Nightly database dump (also inside the PBS backup of the container).
 kasm_backup_dir: /var/backups/kasm
 kasm_backup_days: 14
+
+# Admin login: the installer sets it, the config tasks log in with it (Kasm's API on 127.0.0.1).
+kasm_admin_user: admin@kasm.local
+kasm_api: https://127.0.0.1:{{ kasm_port }}/api
+kasm_admin_password: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/kasm/password') }}"
+
+# Workspaces, as installed from Kasm's registry (channel 1.19.0-rolling-weekly). Created when no workspace
+# with that friendly_name exists; edits made in the UI afterwards are left alone.
+kasm_workspaces:
+  - friendly_name: "Brave"
+    name: "kasmweb/brave:1.19.0-rolling-weekly"
+    description: "The Brave browser is a fast, private and secure web browser."
+    image_src: "img/thumbnails/brave.png"
+    categories: ["Browser"]
+    uncompressed_size_mb: 1350
+    browser: true
+  - friendly_name: "Chrome"
+    name: "kasmweb/chrome:1.19.0-rolling-weekly"
+    description: "Google Chrome is a cross-platform web browser developed by Google."
+    image_src: "img/thumbnails/chrome.png"
+    categories: ["Browser"]
+    uncompressed_size_mb: 1414
+    browser: true
+  - friendly_name: "Chromium"
+    name: "kasmweb/chromium:1.19.0-rolling-weekly"
+    description: "Chromium is a free and open-source browser, primarily developed and maintained by Google."
+    image_src: "img/thumbnails/chromium.png"
+    categories: ["Browser"]
+    uncompressed_size_mb: 1375
+    browser: true
+  - friendly_name: "Edge"
+    name: "kasmweb/edge:1.19.0-rolling-weekly"
+    description: "Microsoft Edge is a cross-platform web browser developed by Microsoft."
+    image_src: "img/thumbnails/edge.png"
+    categories: ["Browser"]
+    uncompressed_size_mb: 1422
+    browser: true
+  - friendly_name: "Firefox"
+    name: "kasmweb/firefox:1.19.0-rolling-weekly"
+    description: "Firefox was created by Mozilla as a faster, more private alternative to browsers like Internet Explorer, and now Chrome."
+    image_src: "img/thumbnails/firefox.png"
+    categories: ["Browser"]
+    uncompressed_size_mb: 1335
+    browser: true
+  - friendly_name: "Tor-Browser"
+    name: "kasmweb/tor-browser:1.19.0-rolling-weekly"
+    description: "Tor is free and open-source software for enabling anonymous communication by directing Internet traffic through a free, worldwide, volunteer overlay network."
+    image_src: "img/thumbnails/tor-browser.png"
+    categories: ["Browser", "Privacy"]
+    uncompressed_size_mb: 1332
+    browser: true
+  - friendly_name: "Ubuntu Noble"
+    name: "kasmweb/ubuntu-noble-desktop:1.19.0-rolling-weekly"
+    description: "Ubuntu is a Linux distribution based on Debian."
+    image_src: "img/thumbnails/ubuntu.png"
+    categories: ["Desktop", "Productivity", "Development"]
+    uncompressed_size_mb: 4044
+  - friendly_name: "Vivaldi"
+    name: "kasmweb/vivaldi:1.19.0-rolling-weekly"
+    description: "Vivaldi is a freeware, cross-platform web browser developed by Vivaldi Technologies."
+    image_src: "img/thumbnails/vivaldi.svg"
+    categories: ["Browser"]
+    uncompressed_size_mb: 1345
+    browser: true
+
+# What every workspace shares (the registry's values); browsers also get their start commands.
+kasm_workspace_defaults:
+  image_type: Container
+  enabled: true
+  cores: 2
+  memory_bytes: 2902458368 # the registry's 2768 MiB
+  cpu_allocation_method: Inherit
+  docker_registry: https://index.docker.io/v1/
+  run_config: '{"hostname": "kasm"}' # JSON text, like the UI's field (create_image rejects an object)
+  gpu_count: 0
+  require_gpu: false
+  gpu_graphics_acceleration: [MESA]
+  gpu_video_encoding: [SW]
+  x_res: 800
+  y_res: 600
+kasm_browser_exec_config:
+  go: {cmd: "bash -c '/dockerstartup/custom_startup.sh --go --url \"$KASM_URL\"'"}
+  assign: {cmd: "bash -c '/dockerstartup/custom_startup.sh --assign --url \"$KASM_URL\"'"}
+
+# VPN egress: one WireGuard provider and gateway for the All Users group, so every workspace can pick it
+# at launch. The gateway gets the vault note without its PrivateKey line; the key goes into the
+# credential (Kasm adds it per session). {} turns it off.
+kasm_egress:
+  provider: proton-swiss
+  gateway: {name: Swiss-VPN, country: Switzerland, city: Zurich}
+  credential: proton-kasm-vpn
+  group: All Users
+  config: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/kasm-vpn/note') | regex_replace('(?m)^PrivateKey\\s*=.*\\n', '') }}"
+  private_key: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/kasm-vpn/password') }}"

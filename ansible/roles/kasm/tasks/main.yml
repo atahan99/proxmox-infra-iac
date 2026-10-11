@@ -24,7 +24,7 @@
         remote_src: true
       ignore_errors: "{{ ansible_check_mode }}"
 
-    - name: Install | bootstrap logins (first admin login; root-only)
+    - name: Install | bootstrap logins (root-only; only user@kasm.local's line is used, the admin password is the vault's)
       ansible.builtin.copy:
         dest: /root/kasm-install-logins
         content: |
@@ -44,7 +44,7 @@
     - name: Install | run the installer (pulls Kasm's service images; takes a while)
       ansible.builtin.command: >-
         bash /var/cache/kasm_release/install.sh --accept-eula --proxy-port {{ kasm_port }}
-        --admin-password {{ (kasm_logins.content | b64decode).splitlines()[0].split()[1] }}
+        --admin-password {{ kasm_admin_password }}
         --user-password {{ (kasm_logins.content | b64decode).splitlines()[1].split()[1] }}
         {{ kasm_install_flags | join(' ') }}
       args:
@@ -128,3 +128,6 @@
     daemon_reload: true
   loop: [docker-prune-dangling.timer, kasm-db-backup.timer]
   ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Config | workspaces and VPN egress through Kasm's admin API
+  ansible.builtin.import_tasks: config.yml
