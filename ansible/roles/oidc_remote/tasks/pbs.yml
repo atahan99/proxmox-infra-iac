@@ -1,0 +1,31 @@
+# Realm "authelia" in PBS; root@pam stays for the direct https://<pbs>:8007.
+- name: PBS | realms
+  ansible.builtin.command: proxmox-backup-manager openid list --output-format json
+  delegate_to: "{{ groups['pbs_servers'][0] }}"
+  register: oidc_remote_pbs_realms
+  changed_when: false
+  check_mode: false
+
+- name: PBS | Authelia realm
+  ansible.builtin.command:
+    argv: [proxmox-backup-manager, openid, create, authelia, --issuer-url, "{{ oidc_remote_issuer }}", --client-id, pbs,
+           --client-key, "{{ oidc_remote_secret.pbs }}", --username-claim, preferred_username, --scopes,
+           openid email profile, --autocreate, "false", --default, "true", --comment, Authelia]
+  delegate_to: "{{ groups['pbs_servers'][0] }}"
+  when: "'authelia' not in (oidc_remote_pbs_realms.stdout | from_json | map(attribute='realm'))"
+  changed_when: true
+  no_log: true
+
+- name: PBS | your user, Admin on everything
+  ansible.builtin.shell: |
+    set -eo pipefail
+    u='{{ oidc_remote_user }}@authelia'
+    proxmox-backup-manager user list --output-format json | grep -q "\"userid\":\"$u\"" && exit 0
+    proxmox-backup-manager user create "$u" --comment Authelia
+    proxmox-backup-manager acl update / Admin --auth-id "$u"
+    echo changed
+  args:
+    executable: /bin/bash
+  delegate_to: "{{ groups['pbs_servers'][0] }}"
+  register: oidc_remote_pbs_user
+  changed_when: "'changed' in oidc_remote_pbs_user.stdout"

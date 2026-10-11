@@ -21,3 +21,4 @@
     - dockhand_config
     - memos_config
     - calibre_config
+    - oidc_remote

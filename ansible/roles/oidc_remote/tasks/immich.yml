@@ -1,0 +1,33 @@
+# "Login with Authelia" next to Immich's own login (kept: the phone app and API keys use it). No
+# auto-register: your Immich email differs from Authelia's, so link once in Account Settings -> OAuth.
+- name: Immich | system config
+  ansible.builtin.uri:
+    url: "{{ oidc_remote_immich_url }}/api/system-config"
+    headers: {x-api-key: "{{ oidc_remote_immich_key }}"}
+  delegate_to: localhost
+  register: oidc_remote_immich_config
+  no_log: true
+  check_mode: false
+
+- name: Immich | OAuth with Authelia
+  vars:
+    oidc_remote_immich_oauth:
+      enabled: true
+      issuerUrl: "{{ oidc_remote_issuer }}"
+      clientId: immich
+      clientSecret: "{{ oidc_remote_secret.immich }}"
+      scope: openid email profile
+      tokenEndpointAuthMethod: client_secret_basic
+      buttonText: Login with Authelia
+      autoRegister: false
+      autoLaunch: false
+  ansible.builtin.uri:
+    url: "{{ oidc_remote_immich_url }}/api/system-config"
+    method: PUT
+    headers: {x-api-key: "{{ oidc_remote_immich_key }}"}
+    body_format: json
+    body: "{{ oidc_remote_immich_config.json | combine({'oauth': oidc_remote_immich_config.json.oauth | combine(oidc_remote_immich_oauth)}) }}"
+  delegate_to: localhost
+  when: oidc_remote_immich_config.json.oauth | combine(oidc_remote_immich_oauth) != oidc_remote_immich_config.json.oauth
+  changed_when: true
+  no_log: true

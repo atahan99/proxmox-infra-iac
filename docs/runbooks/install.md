@@ -206,7 +206,8 @@ starts empty:
 | Home Assistant | Onboarding: restore the latest backup (Terminal & SSH comes back with it), then `make ha-deploy`. HA keeps its proxy settings in `.storage/http`, not the YAML: if `https://homeassistant.<domain>` answers 400, set Settings → System → Network → trusted proxies to docker-apps (`<lan>.122`) |
 | Authelia | Log in and register 2FA. The one-time links: `ssh root@<PVE_IP> 'pct exec 109 -- docker exec authelia cat /data/notification.txt'` |
 | Beszel | Create the login from vault item `beszel`, with the email from vault `authelia/email` (the hub trusts Authelia's `Remote-Email`, so that login is one-click; the password stays for Homepage). Add the systems: docker-apps as host `beszel-agent`, every other LXC by IP, port 45876 |
-| Immich | Nothing: library and database are on the USB disk |
+| Immich | Library and database are on the USB disk. `make apps` adds "Login with Authelia"; link it once: log in with your Immich password, Account Settings → OAuth → Link |
+| Proxmox, PBS | Nothing: `make apps` adds the Authelia realm (the default on the login form) and `<you>@authelia` as admin. `root@pam` stays, and the direct `https://<ip>:8006` / `:8007` works without Authelia |
 | Frigate | Settings → Users: the viewer from vault item `frigate` |
 | Forgejo | Mirror the GitHub repos with the token from `github-forgejo` |
 | changedetection | Add the watches, notifications to ntfy `homelab-personal` |

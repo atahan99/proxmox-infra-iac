@@ -7,8 +7,10 @@
 - The one exception is Plex: the router forwards 32400 to its unprivileged LXC, outside Traefik. Plex's
   Traefik route strips the `Cookie` header, so Plex never sees the Authelia session cookie.
 - Authelia handles login with 2FA, as forward-auth in front of the apps and as the OIDC provider for
-  Dockhand, Grafana, Vikunja, Mealie, Memos, File Browser and Calibre-Web. The Authelia group `admins` is the
-  admin in those apps. OIDC keys and client secrets are generated on docker-apps and never leave it.
+  Dockhand, Grafana, Vikunja, Mealie, Memos, File Browser, Calibre-Web, Proxmox, PBS and Immich. The Authelia
+  group `admins` (or, in Proxmox and PBS, `<you>@authelia`) is the admin in those apps. OIDC keys and client
+  secrets are generated on docker-apps; Proxmox, PBS and Immich keep a copy of their own secret. Proxmox and
+  PBS keep `root@pam`, reachable on their direct address without Authelia.
 - The server only connects out: Dockhand pulls from GitHub, Renovate and CI run on GitHub. GitHub holds no
   deploy credentials.
 - A push to `main` deploys nothing. Only `make release` moves `deploy`, and only to a commit CI passed
@@ -85,7 +87,7 @@ Every item and field in the vault, and how to create each, is in
 | Hawser tokens | Full Docker API on docker-hw or kasm, over TLS | On suspicion, both sides |
 | Dozzle agent certificate | Reads docker-hw's container logs (mutual TLS) | On suspicion |
 | Frigate RTSP login | Camera streams | On suspicion; update HA too |
-| OIDC client secrets | Dockhand, Grafana, Vikunja, Mealie, Memos, File Browser, Calibre-Web login | Regenerated on reinstall |
+| OIDC client secrets | Dockhand, Grafana, Vikunja, Mealie, Memos, File Browser, Calibre-Web, Proxmox, PBS, Immich login | Regenerated on reinstall |
 | Tailscale auth key | First join only | Expires by itself |
 | Service secrets (Authelia, databases, keepalived, admin logins) | One item per stack, rendered to `/opt/secrets/<stack>.env` | On suspicion |
 

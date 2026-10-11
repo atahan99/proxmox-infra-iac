@@ -1,0 +1,32 @@
+# Realm "Authelia" on the login form (the default one). root@pam stays: the direct https://<host>:8006
+# skips Traefik and Authelia, so it works with Authelia down.
+- name: Proxmox | realms
+  ansible.builtin.command: pveum realm list --output-format json
+  delegate_to: "{{ groups['pve_hosts'][0] }}"
+  register: oidc_remote_pve_realms
+  changed_when: false
+  check_mode: false
+
+- name: Proxmox | Authelia realm
+  ansible.builtin.command:
+    argv: [pveum, realm, add, authelia, --type, openid, --issuer-url, "{{ oidc_remote_issuer }}", --client-id, proxmox,
+           --client-key, "{{ oidc_remote_secret.proxmox }}", --username-claim, preferred_username, --scopes,
+           openid email profile, --autocreate, "0", --default, "1", --comment, Authelia]
+  delegate_to: "{{ groups['pve_hosts'][0] }}"
+  when: "'authelia' not in (oidc_remote_pve_realms.stdout | from_json | map(attribute='realm'))"
+  changed_when: true
+  no_log: true
+
+- name: Proxmox | your user, Administrator on everything
+  ansible.builtin.shell: |
+    set -eo pipefail
+    u='{{ oidc_remote_user }}@authelia'
+    pveum user list --output-format json | grep -q "\"userid\":\"$u\"" && exit 0
+    pveum user add "$u" --comment Authelia
+    pveum acl modify / --users "$u" --roles Administrator
+    echo changed
+  args:
+    executable: /bin/bash
+  delegate_to: "{{ groups['pve_hosts'][0] }}"
+  register: oidc_remote_pve_user
+  changed_when: "'changed' in oidc_remote_pve_user.stdout"

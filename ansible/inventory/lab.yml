@@ -74,6 +74,7 @@ all:
           homepage/homepage.env: {HOMEPAGE_VAR_GRAFANA_USERNAME: lab-admin, HOMEPAGE_VAR_GRAFANA_PASSWORD: *lab_grafana_admin}
         core_stacks_authelia_user: lab
         core_stacks_authelia_email: lab@example.com
+        oidc_remote_apps: [] # the lab has no PBS or Immich of its own
         memos_config_password: "{{ lookup('ansible.builtin.password', '.lab-secrets/memos-admin chars=ascii_letters,digits length=24') }}"
         core_stacks_ntfy_admin_user: lab
         core_stacks_ntfy_admin_password: "{{ lookup('ansible.builtin.password', '.lab-secrets/ntfy-lab chars=ascii_letters,digits length=24') }}"

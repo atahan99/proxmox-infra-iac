@@ -119,3 +119,35 @@ identity_providers:
         redirect_uris:
           - 'https://books.{{ env "DOMAIN" }}/login/generic/authorized'
         scopes: [openid, profile, email, groups]
+      - client_id: proxmox
+        client_name: Proxmox VE
+        client_secret: '{{ secret "/data/oidc/proxmox.digest" }}'
+        public: false
+        authorization_policy: two_factor
+        consent_mode: implicit
+        token_endpoint_auth_method: client_secret_basic
+        redirect_uris:
+          - 'https://proxmox.{{ env "DOMAIN" }}'
+        scopes: [openid, profile, email]
+      - client_id: pbs
+        client_name: Proxmox Backup Server
+        client_secret: '{{ secret "/data/oidc/pbs.digest" }}'
+        public: false
+        authorization_policy: two_factor
+        consent_mode: implicit
+        token_endpoint_auth_method: client_secret_basic
+        redirect_uris:
+          - 'https://pbs.{{ env "DOMAIN" }}'
+        scopes: [openid, profile, email]
+      - client_id: immich
+        client_name: Immich
+        client_secret: '{{ secret "/data/oidc/immich.digest" }}'
+        public: false
+        authorization_policy: two_factor
+        consent_mode: implicit
+        token_endpoint_auth_method: client_secret_basic
+        redirect_uris:
+          - 'https://immich.{{ env "DOMAIN" }}/auth/login'
+          - 'https://immich.{{ env "DOMAIN" }}/user-settings'
+          - 'app.immich:///oauth-callback' # the phone app
+        scopes: [openid, profile, email]
