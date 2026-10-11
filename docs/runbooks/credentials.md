@@ -14,6 +14,8 @@ so item titles and field names must match exactly. Scopes and rotation: [securit
 - Don't use the API Credential, Database, Server, SSH key or WiFi templates, or the Password type: they
   name their own fields ("API Key", "Password") and the references won't match.
 - A missing item or field fails the command that reads it.
+- `pass-cli` resolves `pass://Homelab/<title>` to trashed items too, and may pick the trashed one. Empty
+  the trash, and never keep a trashed item with an active item's title.
 
 ## Filling the vault for a fresh install
 
@@ -22,9 +24,9 @@ can be new. Three kinds need care:
 
 | Kind | Items |
 |---|---|
-| Must match data that survives the rebuild | `immich/db_password` (database on the USB disk); `frigate/mqtt_user`, `mqtt_password` (HA's broker comes back from its backup) |
-| Made before the rebuild, still valid after | `immich/api_key`, `homeassistant/homepage_token` (create it before the last HA backup), `tailscale-api/password` |
-| `changeme` until the app runs | `changedetection`, `mealie`, `plex`, `tautulli`, `freshrss`, `pbs-homepage`, `proxmox-exporter`, `proxmox-homepage`, `tailscale-api/device_id` |
+| Must match data that survives the rebuild | `immich/db_password` (database on the USB disk); `frigate/mqtt_user`, `mqtt_password` (the HA user `frigate`, if HA's backup has it; otherwise create it, [install.md](install.md#8-restore-and-first-logins)) |
+| Made before the rebuild, still valid after | `immich/api_key`, `homeassistant/homepage_token` (create it before the last HA backup), `tailscale-api/password`, `openwrt-homepage` |
+| `changeme` until the app runs | `changedetection`, `mealie`, `plex`, `tautulli`, `freshrss`, `calibre-web`, `pbs-homepage`, `proxmox-exporter`, `proxmox-homepage`, `tailscale-api/device_id`, `dockhand/api_key`, `vikunja/api_key`, `qbittorrent/api_key` |
 
 A placeholder doesn't stop `make apps`; a missing field does. After the rebuild, fill in the real values
 and run `make apps ENV=prod` again. They only feed Homepage widgets and the Proxmox exporter.
@@ -62,17 +64,19 @@ and run `make apps ENV=prod` again. They only feed Homepage widgets and the Prox
 | `ntfy` | `username`, `password`, `token_grafana`, `token_scrutiny`, `token_clamav`, `token_pve`, `token_pbs` | Login + custom fields | `core_stacks`, `ntfy.env.tpl`, `monitoring-grafana.env.tpl`, `scrutiny.env.tpl`, `clamav` role, `pve_host` and `pbs` (Proxmox and PBS webhooks, host check scripts) | `username`/`password`: the phone's login. Tokens, one per sender (`tk_` + 29 lowercase letters or digits): `echo tk_$(LC_ALL=C tr -dc a-z0-9 </dev/urandom \| head -c 29)` |
 | `grafana` | `username`, `password` | Login | `monitoring-grafana.env.tpl`, `homepage.env.tpl` | Generate |
 | `homeassistant` | `homepage_token`, `samurai_mac` | Login + custom fields | `homepage.env.tpl`; `homelab.env` (`PC_MAC` for `make ha-deploy`) | `homepage_token`: HA → Profile → Security → long-lived token. Tokens are part of HA's backup: one made before the last backup still works after the restore. `samurai_mac`: the PC's MAC for Wake-on-LAN |
-| `beszel` | `username`, `password`, `hub_key` (multi-line private key), `hub_pubkey` | Login + custom fields | `homepage.env.tpl`; `hub_key`: `stacks/beszel/secrets/beszel_key.pem.tpl`; `hub_pubkey`: the `common` role and both `beszel-agent.env.tpl` | Generate. Beszel logs in with an email, so `username` holds the email; create that login on Beszel's first-run screen. Key pair: `ssh-keygen -t ed25519 -N '' -C beszel -f beszel_hub`, `hub_key` = the file, `hub_pubkey` = the `.pub` line, then delete both files. A new pair needs `make config` and `make apps` so every agent gets the new public key |
+| `beszel` | `username`, `password`, `hub_key` (multi-line private key), `hub_pubkey` | Login + custom fields | `homepage.env.tpl`; `hub_key`: `stacks/beszel/secrets/beszel_key.pem.tpl`; `hub_pubkey`: the `common` role and both `beszel-agent.env.tpl` | Generate. Beszel logs in with an email: `beszel_config` uses vault `authelia/email` with this `password`, Homepage uses `username`, so set `username` to that same email; create that login on Beszel's first-run screen. Key pair: `ssh-keygen -t ed25519 -N '' -C beszel -f beszel_hub`, `hub_key` = the file, `hub_pubkey` = the `.pub` line, then delete both files. A new pair needs `make config` and `make apps` so every agent gets the new public key |
 | `changedetection` | `api_key` | Other | `homepage.env.tpl` | Placeholder until the rebuild, then changedetection → Settings → API |
 | `plex` | `token` | Other | `homepage.env.tpl` | Plex Web → Get Info → View XML → `X-Plex-Token`, or on the host: `pct exec 101 -- grep -o 'PlexOnlineToken="[^"]*' '/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Preferences.xml'`. New after claiming the fresh server |
 | `tautulli` | `api_key` | Other | `homepage.env.tpl` | Placeholder until the rebuild, then Tautulli → Settings → Web Interface → API key |
-| `frigate` | `username`, `password`, `mqtt_user`, `mqtt_password`, `rtsp_user`, `rtsp_password` | Login + custom fields | `stacks/frigate/secrets/frigate.env.tpl` (MQTT, RTSP), `homepage.env.tpl` (viewer login) | MQTT: the login of HA's broker (Mosquitto add-on → Configuration → `logins`); it must match, since HA is restored from its backup. Viewer: generate, then create that user in Frigate → Settings → Users once Frigate runs. RTSP: generate, then set the same login in HA's Frigate integration |
-| `immich` | `api_key`, `db_password` | Login + custom fields | `homepage.env.tpl`, `immich.env.tpl`, `immich-db.env.tpl`, `oidc_remote` role (`api_key`: needs the system config permission) | `db_password`: must match the database on the USB disk, so copy it from the running server: `pct exec 104 -- docker exec immich_postgres printenv POSTGRES_PASSWORD` (generate only for a brand-new Immich). `api_key`: Immich → Account Settings → API Keys → New API Key with only `server.statistics`; it survives a rebuild |
-| `freshrss` | `username`, `api_password` | Login + custom field (`api_password`, not the built-in password) | `homepage.env.tpl` | Placeholder until the rebuild, then FreshRSS → Settings → Profile → API password |
-| `mealie` | `username`, `password`, `api_key` | Login | `homepage.env.tpl` (`api_key`) | Login: fallback only (Mealie hides its password form; you log in through Authelia). `api_key`: Mealie → profile → API Tokens |
+| `frigate` | `username`, `password`, `mqtt_user`, `mqtt_password`, `rtsp_user`, `rtsp_password` | Login + custom fields | `stacks/frigate/secrets/frigate.env.tpl` (MQTT, RTSP), `homepage.env.tpl` (viewer login) | MQTT: an HA user `frigate` (Mosquitto accepts HA users), local only; it comes back with HA's backup if it was in it, otherwise create it ([install.md](install.md#8-restore-and-first-logins)). Viewer: generate, then create that user in Frigate → Settings → Users once Frigate runs. RTSP: generate, then set the same login in HA's Frigate integration |
+| `frigate-admin` | `username` (`admin`), `password` | Login | Nothing; your Frigate admin login | Frigate prints a generated one at first start ([install.md](install.md#8-restore-and-first-logins)); change it, store the new one |
+| `immich` | `username`, `password`, `api_key`, `db_password` | Login + custom fields | `homepage.env.tpl`, `immich.env.tpl`, `immich-db.env.tpl`, `oidc_remote` role (`api_key`) | `db_password`: must match the database on the USB disk, so copy it from the running server: `pct exec 104 -- docker exec immich_postgres printenv POSTGRES_PASSWORD` (generate only for a brand-new Immich). `api_key`: Immich → Account Settings → API Keys → New API Key with `server.statistics` (Homepage), `systemConfig.read` and `systemConfig.update` (`oidc_remote`); it survives a rebuild. An old key with only `server.statistics` must be replaced. `username`/`password`: your Immich login, the fallback when Authelia is down |
+| `freshrss` | `username`, `api_password` | Login + custom field (`api_password`, not the built-in password) | `homepage.env.tpl` | Placeholder until the rebuild, then FreshRSS → Administration → Authentication → tick "Allow API access"; only then Settings → Profile → API password appears |
+| `mealie` | `username`, `password`, `api_key` | Login | `homepage.env.tpl` (`api_key`) | Login: fallback only (you log in through Authelia); `username` = your Authelia username, `password` generated, both entered in Mealie's setup wizard. `api_key`: Mealie → Profile → API Tokens |
 | `memos` | `username` (your Authelia username), `password` | Login | `memos_config` role: creates the account, then its API login | Fallback login; day to day you use "Continue with Authelia" (linked once in Settings). Any strong password |
 | `vikunja` | `jwt_secret`, `api_key` | Other | `vikunja.env.tpl`, `homepage.env.tpl` | `jwt_secret`: `openssl rand -hex 32`. `api_key`: Vikunja → Settings → API Tokens, read-only on projects and tasks |
 | `openwrt-homepage` | `username` (`homepage`), `password` | Login | `homepage.env.tpl` | The router's read-only rpcd login for Homepage's widget (ACL `homepage` in `/usr/share/rpcd/acl.d/`, user in `/etc/config/rpcd`); the router isn't in this repo |
+| `gatus` | `NTFY_TOPIC` | Other | `make gatus-deploy`, into the `.env` of [Gatus](../../gatus) on the RPi3 ([install.md](install.md#8-restore-and-first-logins)) | A long random ntfy.sh topic name (`openssl rand -hex 16`); the name is what keeps it private. Subscribe the phone to it on ntfy.sh |
 | `convertx` | `jwt_secret` | Other | `convertx.env.tpl` | `openssl rand -hex 32` |
 | `searxng` | `secret_key` | Other | `searxng.env.tpl` | `openssl rand -hex 32` |
 | `filebrowser` | `password` | Login (username admin) | `filebrowser.env.tpl` | Generate. Creates the local admin of a new database only; you log in through Authelia (password login is off) |
@@ -86,7 +90,6 @@ Outside `pass://`:
 | Proxmox root password | Vault, `proxmox-root` (Login) |
 | GitHub token for the Forgejo pull mirror | Vault, `github-forgejo` (Login, `password`): fine-grained, the mirrored repos only, Contents read-only, at most 1 year. Pasted into each mirror in Forgejo |
 | Proton account recovery phrase | Offline |
-| Gatus' ntfy.sh topic | Gatus' `.env` on the RPi3 (outside the repo) |
 
 Generated, nothing to store: the PBS backup token `pve@pbs!vzdump`, Authelia's OIDC client secrets,
 Hawser TLS keys, Kasm's install passwords, Forgejo's own secrets, and the qBittorrent and ntfy password hashes.

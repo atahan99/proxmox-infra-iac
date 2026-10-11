@@ -30,6 +30,15 @@ On the old server, while it still runs:
 - [ ] Immich database dump: `... docker exec immich_postgres pg_dumpall -U postgres | gzip > ~/Backups/immich.sql.gz`
 - [ ] FreshRSS feeds exported as OPML.
 
+GitHub, once per repo: public; Settings → Code security: secret scanning, push protection, dependency graph
+and Dependabot alerts on, Dependabot security and version updates off (Renovate does them); the Renovate app
+installed on this repo only. Settings → Rules → Rulesets, both Active:
+
+| Ruleset | Target | Rules | Bypass |
+|---|---|---|---|
+| `main` | Default branch | Restrict deletions, block force pushes | None |
+| `deploy` | `refs/heads/deploy` | Restrict deletions, block force pushes, restrict updates | Repository admin, always |
+
 In the vault: every item in [credentials.md](credentials.md) exists, `changeme` where the app doesn't exist
 yet. `immich/db_password` must be the live database's password. The `deploy` branch points at a green
 commit (`make release`).
@@ -203,34 +212,35 @@ starts empty:
 
 | Service | First run |
 |---|---|
-| Home Assistant | Onboarding: restore the latest backup (Terminal & SSH comes back with it), then `make ha-deploy`. HA keeps its proxy settings in `.storage/http`, not the YAML: if `https://homeassistant.<domain>` answers 400, set Settings → System → Network → trusted proxies to docker-apps (`<lan>.122`) |
+| Home Assistant | Onboarding: restore the latest backup (Terminal & SSH comes back with it), then `make ha-deploy` (it also writes the trusted proxy, docker-apps, and the login attempts limit into `.storage/http`, where HA keeps them). MQTT add-ons that started before Mosquitto (e.g. PS5-MQTT) may need one restart |
 | Authelia | Log in and register 2FA. The one-time links: `ssh root@<PVE_IP> 'pct exec 109 -- docker exec authelia cat /data/notification.txt'` |
-| Beszel | Create the login from vault item `beszel`, with the email from vault `authelia/email` (the hub trusts Authelia's `Remote-Email`; the password stays for Homepage). `make apps` then adds the host and every LXC as systems (agents on port 45876); add your own devices (a PC, ...) in its UI |
+| Beszel | Create the login from vault item `beszel`, with the email from vault `authelia/email` (the hub trusts Authelia's `Remote-Email`; the password stays for Homepage). `make apps` then adds the host and every LXC as systems (agents on port 45876); add your own devices (a PC, ...) in its UI. Until the login exists `make apps` skips Beszel with a message: run it again after creating it |
 | Immich | Library and database are on the USB disk. `make apps` adds "Login with Authelia"; link it once: log in with your Immich password, Account Settings → OAuth → Link |
 | Proxmox, PBS | Nothing: `make apps` adds the Authelia realm (the default on the login form) and `<you>@authelia` as admin. `root@pam` stays, and the direct `https://<ip>:8006` / `:8007` works without Authelia |
-| Frigate | Settings → Users: the viewer from vault item `frigate` |
+| Frigate | Log in as `admin` with the password Frigate generated at first start: `ssh root@<PVE_IP> "pct exec 104 -- sh -c 'docker logs frigate 2>&1 \| grep -i password:'"`. Settings → Users: change it and save it as vault item `frigate-admin`; add the viewer from vault item `frigate`. In HA, if the backup didn't bring the user back: Settings → People → Users → Add user `frigate` (`mqtt_user`), password `mqtt_password`, local only, not admin. Then Settings → Devices & services → Frigate → Reconfigure with the admin password, and under Configure set the RTSP URL template `rtsp://<rtsp_user>:<rtsp_password>@<lan>.120:8554/{{ name }}` (vault item `frigate`) |
 | Forgejo | Mirror the GitHub repos with the token from `github-forgejo` |
 | changedetection | Add the watches, notifications to ntfy `homelab-personal` |
-| FreshRSS | Create the user with Authelia's username, then switch it to Authelia's login: `ssh root@<PVE_IP> 'pct exec 109 -- docker exec -u abc freshrss php /app/www/cli/reconfigure.php --auth-type=http_auth'`. Import the OPML |
+| FreshRSS | Create the user with Authelia's username, then switch it to Authelia's login: `ssh root@<PVE_IP> 'pct exec 109 -- docker exec -u abc freshrss php /app/www/cli/reconfigure.php --auth-type=http_auth'`. Import the OPML. For Homepage: Administration → Authentication → tick "Allow API access", then Settings → Profile → API password → vault `freshrss/api_password` |
 | Memos | Nothing: `make apps` creates your account (Authelia's username, vault item `memos`), adds "Continue with Authelia" and closes sign-ups, once Dockhand has deployed it. Then link it once: sign in with the vault password, Settings → My account → Linked accounts → Authelia |
-| Vikunja, Linkding, Mealie, File Browser | Nothing: the first Authelia login creates the user (Mealie makes Authelia's `admins` an admin) |
-| Mealie (local admin) | At `/login?direct=1` as `changeme@example.com` / `MyPassword`: change both, or delete it once the Authelia user is admin |
+| Vikunja, Linkding, File Browser | Nothing: the first Authelia login creates the user |
+| Mealie | Setup wizard: email = vault `authelia/email`, username = your Authelia username, password = vault `mealie/password`. Then Profile → API Tokens → vault `mealie/api_key`, and `make apps` |
 | Calibre-Web | Log in as `admin` / `admin123`, change the password to vault item `calibre-web`'s (Admin → Edit user); Homepage's widget logs in with it. `make apps` already set the Authelia button (it creates your user, admin through `admins`) |
-| Plex | Claim it from localhost: `ssh -L 32400:localhost:32400 root@$PLEX_IP`, open `http://localhost:32400/web`, add the libraries. Pair Tautulli |
+| Plex | Claim it from localhost: `ssh -L 32400:localhost:32400 root@$PLEX_IP`, open `http://localhost:32400/web`, add the libraries. Pair Tautulli. If its wizard loops: `docker stop tautulli` on docker-apps, in `/opt/appdata/tautulli/config.ini` set `first_run_complete = 1`, `pms_ip = <PLEX_IP>`, `pms_url = http://<PLEX_IP>:32400`, `pms_token` = `PlexOnlineToken` from Plex's `Preferences.xml` (path under `plex` in [credentials.md](credentials.md#items)), then `docker start tautulli`. Remote access: OpenWrt forwards TCP 32400 to `PLEX_IP`, the ISP modem (double NAT) forwards 32400 to OpenWrt's WAN address; Plex → Settings → Remote Access → Enable, manual public port 32400 |
 | Kasm | Nothing: `make config` installs it with the admin password from vault item `kasm` and creates the 8 workspaces and the ProtonVPN egress (`kasm-vpn`). Log in as `admin@kasm.local`. If sessions don't start: Admin → Infrastructure → Zones → Proxy Port 443 |
 | RustDesk | Give the new public key (`/opt/appdata/rustdesk/hbbs/id_ed25519.pub` on docker-apps) to every client |
 | Tailscale | Admin console: approve the subnet route and exit node, turn off key expiry for `tailscale` |
+| ntfy (phone) | ntfy app → Settings → Manage users: `https://ntfy.<domain>` with the login from vault `ntfy`. Subscribe ("Use another server", that URL) to `homelab-critical`, `homelab-infra`, `homelab-security`, `homelab-personal`; and on ntfy.sh, no login, to the topic in vault `gatus` (`NTFY_TOPIC`) |
+| Gatus (RPi3) | Nothing after a server rebuild: it runs on the RPi3, outside the server. After a Pi rebuild (or a change in [`gatus/`](../../gatus)): `make gatus-deploy` (needs `RPI3_USER` in `homelab.env`) |
 
 Last, replace the `changeme` placeholders in the vault with the real keys
-([credentials.md](credentials.md#filling-the-vault-for-a-fresh-install)) and run `make apps ENV=prod` again
-for the Homepage widgets and the Proxmox exporter.
+([credentials.md](credentials.md#filling-the-vault-for-a-fresh-install)) and run `make apps ENV=prod` again:
+it renders the secrets and redeploys every stack whose secrets changed (Homepage widgets, the Proxmox exporter).
 
 ## 9. Verify
 
 - [ ] Plex transcodes on the iGPU; Frigate detects with the Coral; the webcam survives a replug; Immich ML
       runs.
-- [ ] HA's Frigate integration connects and streams. Its RTSP URL template:
-      `rtsp://<rtsp_user>:<rtsp_password>@<lan>.120:8554/{{ name }}` (vault item `frigate`).
+- [ ] HA's Frigate integration connects and streams; Mosquitto's log shows `frigate` connected.
 - [ ] The Windows PC opens `\\nas\NAS` with the Samba login.
 - [ ] Every `*.<domain>` host loads through Traefik and Authelia; Homepage widgets are green.
 - [ ] File Browser shows Books, Downloads, Movies, Shared and Torrents, nothing else.

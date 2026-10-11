@@ -123,6 +123,8 @@ Supply chain:
   Accepted because docker-hw is reachable only from the LAN and Tailscale. The fix would be an
   unprivileged docker-hw that gets only the Coral's device node, re-injected when it re-enumerates (as
   `lxc-video-sync` does for the webcam).
+  Its device cgroup allows all USB (`189:*`) and ALSA (`116:*`) devices, because the Coral changes device
+  number on every firmware load; the CT is privileged anyway.
 - No host intrusion detection. An agent costs more CPU and RAM than one N150 with nothing exposed
   justifies.
 - One node, so no high availability.

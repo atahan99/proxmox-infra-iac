@@ -8,7 +8,7 @@ are each handled differently.
 | VM | VM 102: q35, OVMF, 2 cores, 4 GB, 32 GB, serial console, fixed MAC, guest agent, deletion protection | OpenTofu imports the disk from the image `pve_host` downloads. A newer image name never re-imports it; HAOS updates itself | Yes |
 | YAML | `configuration.yaml` with packages (Frigate recording, lights, Wake-on-LAN, nightly updates), YAML dashboards, IP ban after 5 failed logins | `make ha-deploy` | Yes |
 | Secrets | `secrets.yaml`: the PC's MAC and IP for Wake-on-LAN, docker-apps' IP as the trusted proxy | `deploy.sh` fills `secrets.yaml.tpl` from `homelab.env` and pipes it to HA; it never lands on the Mac's disk | Template only |
-| UI state | Integrations, devices, entities, users, helpers, add-on options (`.storage/`) | Restored from HA backups | No |
+| UI state | Integrations, devices, entities, users, helpers, add-on options (`.storage/`) | Restored from HA backups; `make ha-deploy` also writes the trusted proxy and login attempts limit into `.storage/http`, where HA reads them | No |
 | Backups | Full HA backups | HA's own schedule to the nas share, plus PBS every 3 days | No |
 
 ```mermaid
@@ -29,7 +29,7 @@ switch is `switch.pc`.
 
 `make guests` creates VM 102, which boots to onboarding. Restore the latest backup from nas, install the
 Terminal & SSH add-on, then `make ha-deploy`. The Frigate integration's RTSP URL is in the
-[install runbook](runbooks/install.md#9-verify).
+[install runbook](runbooks/install.md#8-restore-and-first-logins).
 
 ## Updates
 
