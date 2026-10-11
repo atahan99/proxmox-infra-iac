@@ -45,4 +45,7 @@
           port: "{{ beszel_config_port }}"
           users: ["{{ beszel_config_login.json.record.id }}"]
       loop: "{{ beszel_config_hosts | difference(beszel_config_systems.json['items'] | map(attribute='name')) }}"
+      loop_control:
+        label: "{{ item }}"
       changed_when: true
+      no_log: true # the request carries the session token
