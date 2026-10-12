@@ -14,6 +14,10 @@ http:
     lan-tailscale-docker:
       ipAllowList:
         sourceRange: ['{{ env "LAN_CIDR" }}', 100.64.0.0/10, 172.16.0.0/12]
+    # Forgejo's API and git routes: the same, plus Gitea Mirror's network (fixed in core_stacks).
+    forgejo-api:
+      ipAllowList:
+        sourceRange: ['{{ env "LAN_CIDR" }}', 100.64.0.0/10, 10.250.0.24/29]
     # On every request (websecure entrypoint, before any route): drop identity headers a client sent
     # itself, in both spellings: WSGI apps (linkding) read Remote_User as Remote-User. Authelia's
     # forward-auth then sets the real Remote-User on the routes it protects.

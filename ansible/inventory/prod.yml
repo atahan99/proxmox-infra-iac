@@ -55,6 +55,7 @@ all:
                 - "mp2: /mnt/external/Movies,mp=/mnt/external/Movies"
                 - "mp3: /mnt/external/Shared,mp=/mnt/external/Shared"
                 - "mp4: /mnt/external/Torrents,mp=/mnt/external/Torrents"
+                - "mp5: /mnt/external/Forgejo,mp=/mnt/external/Forgejo" # Forgejo's repositories
                 - "dev0: /dev/net/tun"
                 - "features: keyctl=1,nesting=1"
               idmap: true

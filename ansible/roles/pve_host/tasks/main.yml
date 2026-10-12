@@ -93,6 +93,15 @@
     mode: "0700"
   loop: [host-config, pbs-config]
 
+# docker-apps mounts it (lxc_devices): a missing source would stop the CT from starting.
+- name: Forgejo | repositories folder on the USB disk (uid 1000, Forgejo's user)
+  ansible.builtin.file:
+    path: /mnt/external/Forgejo
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0750"
+
 - name: Maintenance | scripts
   ansible.builtin.copy:
     src: "maintenance/{{ item.name }}"

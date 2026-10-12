@@ -9,7 +9,7 @@
     - {name: dockhand, flags: ""} # Traefik <-> Dockhand only (Dockhand needs internet for git)
     - {name: forgejo, flags: --subnet 10.250.0.0/29} # fixed: Forgejo trusts this subnet's Remote-User
     - {name: linkding, flags: ""}
-    - {name: gitea-mirror, flags: ""} # needs internet (GitHub); Forgejo's API through Traefik
+    - {name: gitea-mirror, flags: --subnet 10.250.0.24/29} # fixed: Forgejo's API route allows this subnet
     - {name: freshrss, flags: --subnet 10.250.0.8/29} # fixed: FreshRSS trusts this subnet's Remote-User
     - {name: beszel-web, flags: --subnet 10.250.0.16/29} # fixed: Beszel trusts this subnet's Remote-Email
     - {name: dozzle, flags: ""}
