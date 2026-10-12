@@ -49,6 +49,61 @@ The public key goes into `ansible/inventory/group_vars/all.yml` (`ssh_authorized
 (`ssh-copy-id root@$PVE_IP`); from then on `pve_host` manages it, and password login over SSH is
 turned off.
 
+The RPi3 (`$RPI3_USER@$RPI3_IP`) and Home Assistant (the Terminal & SSH add-on's `authorized_keys` option)
+are not managed: add the key there by hand.
+
+### A second computer (Windows)
+
+Only the Mac's key is in the repo. Another computer's key is added by hand, and a rebuilt guest comes
+back without it (repeat steps 2 and 3).
+
+1. Make the key in PowerShell. No passphrase, like the Mac's, so keep it to your own account:
+
+   ```powershell
+   ssh-keygen -t ed25519 -C "windows-homelab" -N '""' -f $env:USERPROFILE\.ssh\id_ed25519
+   ```
+
+2. The host takes keys only, so open password login for a moment, from the Mac:
+
+   ```bash
+   ssh root@$PVE_IP 'printf "PasswordAuthentication yes\nPermitRootLogin yes\n" > /etc/ssh/sshd_config.d/05-temp-password.conf && sshd -t && systemctl reload ssh'
+   ```
+
+   Then on Windows (`ssh-keygen -R` forgets a host key from before a rebuild):
+
+   ```powershell
+   ssh-keygen -R <PVE_IP>
+   Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub | ssh root@<PVE_IP> "cat >> /root/.ssh/authorized_keys"
+   ```
+
+   And close it again, from the Mac:
+
+   ```bash
+   ssh root@$PVE_IP 'rm /etc/ssh/sshd_config.d/05-temp-password.conf && systemctl reload ssh && sshd -T | grep -i ^passwordauth'
+   ```
+
+   Expect `passwordauthentication no`.
+
+3. Copy the key into every LXC (their root has no password, so this goes through `pct exec`), from the Mac:
+
+   ```bash
+   ssh root@$PVE_IP 'K=$(grep windows-homelab /root/.ssh/authorized_keys); for c in $(pct list | awk "NR>1{print \$1}"); do pct exec $c -- sh -c "grep -qxF \"$K\" /root/.ssh/authorized_keys || echo \"$K\" >> /root/.ssh/authorized_keys"; done'
+   ```
+
+4. RPi3 and Home Assistant: as above, by hand. On Windows, `ssh-keygen -R <ip>` for each guest the first
+   time after a rebuild.
+
+### XPipe
+
+On each computer, add one identity (the person+ button next to "User identity"): user `root`, password
+none, key-based authentication = key file `~/.ssh/id_ed25519` (`C:\Users\<you>\.ssh\id_ed25519` on
+Windows). Make it local to that computer: the key path differs per machine. Pick it in every connection
+and set the connection's own password and key fields to none. The RPi3 gets a second identity, user
+`$RPI3_USER`, same key, with its password kept for sudo.
+
+After a rebuild, delete XPipe entries left over from the old guests and refresh "Proxmox systems": a
+stale entry holding an old VMID hides the new guest with that ID.
+
 ## First run
 
 ```bash
