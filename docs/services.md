@@ -46,6 +46,9 @@ register it. After that, a merge and `make release` redeploy it within 5 minutes
   ([security.md](security.md#scanning-and-supply-chain)).
 - Prometheus, Grafana and Loki run as root in the container, because Docker creates their bind-mounted
   folders as root (the LXC is unprivileged). File Browser instead gets a one-shot `chown` init service.
+- Forgejo: app data (`app.ini`, SQLite) in `/opt/appdata/forgejo`, the repositories only on the USB disk
+  (`/mnt/external/Forgejo`, also on the Samba share). They are bare repos: `git clone` one straight from the
+  share if Forgejo is down. Gitea Mirror creates a pull mirror per GitHub repo; Forgejo syncs them every 8h.
 - code-server and File Browser don't mount `/opt`. Syncthing uses no relay.
 
 ## DNS (AdGuard)

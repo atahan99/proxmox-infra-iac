@@ -27,7 +27,7 @@
 
   | Guest | Sees |
   |---|---|
-  | docker-apps | `Books`, `Downloads`, `Movies`, `Shared`, `Torrents` (so File Browser sees only these) |
+  | docker-apps | `Books`, `Downloads`, `Forgejo`, `Movies`, `Shared`, `Torrents` (so File Browser sees only these) |
   | docker-hw | `FrigateNVR`, `Personal/Immich` |
   | pbs | `Backups` |
   | nas | Everything; `Backups` and `Proxmox` are vetoed on the share |
