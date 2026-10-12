@@ -1,22 +1,35 @@
 # Proxmox Infra
 
-My homelab as code: one Proxmox server at home running 10 guests and 36 Docker stacks, rebuilt from this
-repo, a password manager vault and a data restore.
+## Project overview
 
-## Why
+This repository turns my single-node Proxmox VE homelab into a reproducible infrastructure-as-code system. One Intel N150 mini PC runs nine LXC containers, one Home Assistant OS VM, and 36 Docker Compose stacks with 56 long-running containers. Starting from a blank NVMe, the documented rebuild takes approximately 3 hours, with persistent data reattached or restored from a separate USB disk.
 
-Everything I self-host runs on one small box: DNS for the house, cameras, photos, media, Home Assistant,
-and a few dozen apps. Built by hand, a dead NVMe or a bad upgrade would mean days of remembering how
-everything was set up. Here every setting lives in git, every secret in one vault, and a full rebuild is a
-runbook of about 3 hours, most of it unattended.
+OpenTofu provisions the LXCs and HAOS VM through the Proxmox API using the `bpg/proxmox` provider and least-privilege plan/apply tokens. Its state and plans are encrypted before being committed to Git. Ansible configures the Proxmox host and LXCs, including networking, SSH hardening, security updates, Docker Engine, storage mounts, hardware passthrough, maintenance jobs and services such as AdGuard Home, Tailscale, Samba, Plex, Proxmox Backup Server, Kasm and ClamAV.
 
-It's also practice in running infrastructure properly: least-privilege tokens, CI before anything
-ships, pull-based deploys, pinned and scanned dependencies, decision records. The repo is
-public, so none of it may contain a secret or a home address.
+Application deployment follows a gated, pull-based GitOps workflow:
 
-| Hardware | Guests | Docker | Exposed to the internet | Rebuild |
-|---|---|---|---|---|
-| GMKtec G3 Plus, Intel N150, NVMe + USB disk | 9 LXCs, 1 VM | 36 stacks, 56 containers | Plex only | ~3 h |
+1. Renovate proposes updates for container images and other tracked dependencies, with images pinned by digest.
+2. GitHub Actions runs linting, OpenTofu and Home Assistant validation, Gitleaks secret scanning, Trivy configuration scanning, and custom Docker Compose security checks.
+3. CI never deploys. After the exact commit on `main` passes, I explicitly run `make release` to advance the protected `deploy` branch.
+4. Dockhand polls that branch every five minutes, pulls the approved Compose definitions from Git, and deploys them locally or to the hardware Docker host through Hawser over TLS.
+
+GitHub holds no deployment credentials, and the homelab exposes no webhook or self-hosted Actions runner. Secrets are stored in a Proton Pass vault, read through a read-only access token, resolved at deployment time with `pass-cli`, and rendered only into root-owned files on the target hosts. Plaintext secrets and site-specific values are kept out of the public repository.
+
+Traefik provides internal routing and a wildcard Let's Encrypt certificate through Cloudflare DNS-01. Authelia provides single sign-on (SSO) with 2FA for most web services, through forward authentication and OIDC, while Home Assistant, Plex, Immich and Frigate retain native authentication for mobile-client compatibility. Private access is provided over the LAN and through a Tailscale subnet router and exit node; Plex on TCP 32400 is the only intentional public exception. AdGuard Home runs on a primary LXC with a Raspberry Pi replica, synchronized every five minutes and presented through a keepalived virtual IP for DNS failover.
+
+Prometheus, Grafana, Loki and Alloy provide metrics, dashboards, logs and alerts, complemented by Beszel, Dozzle, Scrutiny and an external Gatus instance. Alerts are delivered through ntfy. Proxmox Backup Server protects the guests, while photos, recordings, media and Forgejo repositories live on the USB disk and survive an NVMe reinstall. The current backup design is local rather than full disaster recovery: there is no off-site copy, and the documented recovery point can be up to 3 days.
+
+| Hardware | What it does |
+|---|---|
+| GMKtec NucBox G3 Plus: Intel N150, 32 GB RAM | The Proxmox VE host |
+| Samsung 980 1 TB NVMe | Proxmox, the guests' disks, app data |
+| Seagate Expansion 5 TB USB HDD | Photos, camera recordings, media, Forgejo repositories, PBS datastore |
+| Google Coral USB Accelerator (Edge TPU) | Frigate's object detection |
+| Logitech C920 HD Pro webcam | A Frigate camera, with its audio through MediaMTX |
+
+| Guests | Docker | Exposed to the internet | Rebuild |
+|---|---|---|---|
+| 9 LXCs, 1 VM | 36 stacks, 56 containers | Plex only | ~3 h |
 
 ## How it works
 
@@ -28,15 +41,6 @@ flowchart LR
   Mac -- "push" --> GH["GitHub main"] -- "CI green,<br/>make release" --> DB["deploy branch"]
   DB -- "pulled every 5 min" --> D["Dockhand<br/>app stacks"]
 ```
-
-- OpenTofu (`bpg/proxmox`) creates the LXCs and the Home Assistant VM, with encrypted state in the repo.
-- Ansible configures the host, the root-only container settings and every guest.
-- Dockhand deploys the Docker stacks in `stacks/` from a `deploy` branch that only moves after CI passes.
-- Secrets stay in Proton Pass; the repo holds `pass://` references. Site values (domain, addresses) live
-  in the gitignored `homelab.env`.
-- CI lints, validates and scans for secrets and misconfigurations. It never deploys.
-- No app is published to the internet: everything goes through Traefik and Authelia, reached over the
-  LAN or Tailscale.
 
 ## Getting started
 
