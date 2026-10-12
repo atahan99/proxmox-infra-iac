@@ -26,7 +26,7 @@ can be new. Three kinds need care:
 |---|---|
 | Must match data that survives the rebuild | `immich/db_password` (database on the USB disk); `frigate/mqtt_user`, `mqtt_password` (the HA user `frigate`, if HA's backup has it; otherwise create it, [install.md](install.md#8-restore-and-first-logins)) |
 | Made before the rebuild, still valid after | `immich/api_key`, `homeassistant/homepage_token` (create it before the last HA backup), `tailscale-api/password`, `openwrt-homepage` |
-| `changeme` until the app runs | `changedetection`, `mealie`, `plex`, `tautulli`, `freshrss`, `calibre-web`, `pbs-homepage`, `proxmox-exporter`, `proxmox-homepage`, `tailscale-api/device_id`, `dockhand/api_key`, `vikunja/api_key`, `qbittorrent/api_key` |
+| `changeme` until the app runs | `changedetection`, `mealie`, `plex`, `tautulli`, `freshrss`, `calibre-web`, `pbs-homepage`, `proxmox-exporter`, `proxmox-homepage`, `tailscale-api/device_id`, `dockhand/api_key`, `vikunja/api_key`, `qbittorrent/api_key`, `forgejo-mirror` |
 
 A placeholder doesn't stop `make apps`; a missing field does. After the rebuild, fill in the real values
 and run `make apps ENV=prod` again. They only feed Homepage widgets and the Proxmox exporter.
@@ -80,6 +80,8 @@ and run `make apps ENV=prod` again. They only feed Homepage widgets and the Prox
 | `convertx` | `jwt_secret` | Other | `convertx.env.tpl` | `openssl rand -hex 32` |
 | `searxng` | `secret_key` | Other | `searxng.env.tpl` | `openssl rand -hex 32` |
 | `filebrowser` | `password` | Login (username admin) | `filebrowser.env.tpl` | Generate. Creates the local admin of a new database only; you log in through Authelia (password login is off) |
+| `github-forgejo` | `username`, `password` | Login | `forgejo-mirror.env.tpl` (Gitea Mirror) | `username`: your GitHub username. `password`: GitHub → Settings → Developer settings → Fine-grained token, Repository access **All repositories** (covers repos made later), Contents and Metadata read-only, ≤ 1 year. A new token: update it in Gitea Mirror's Configuration page too (it keeps its own copy, and so does every Forgejo mirror) |
+| `forgejo-mirror` | `username`, `password` | Login | `forgejo-mirror.env.tpl` (Gitea Mirror) | `username`: your Forgejo username (= Authelia's). `password`: placeholder until the rebuild, then Forgejo → Settings → Applications → new token, access All, repository read and write, user read. New on every rebuild (Forgejo starts empty) |
 
 Outside `pass://`:
 
@@ -88,7 +90,6 @@ Outside `pass://`:
 | Vault access token (read-only, `Homelab` vault) | macOS Keychain, service `proton-pass-pat` ([workstation.md](workstation.md)) |
 | Mac SSH key `mac-homelab` | `~/.ssh`; public key in `group_vars/all.yml` and `tofu/variables.tf` |
 | Proxmox root password | Vault, `proxmox-root` (Login) |
-| GitHub token for the Forgejo pull mirror | Vault, `github-forgejo` (Login, `password`): fine-grained, the mirrored repos only, Contents read-only, at most 1 year. Pasted into each mirror in Forgejo |
 | Proton account recovery phrase | Offline |
 
 Generated, nothing to store: the PBS backup token `pve@pbs!vzdump`, Authelia's OIDC client secrets,

@@ -44,7 +44,7 @@
   and Alloy go through `wollomatic/socket-proxy`, which allows only those clients and only GET on `_ping`,
   `version`, `info`, `events`, `networks` and container list, inspect, logs and stats.
 - Dockhand has its own network shared only with Traefik, so app containers can't reach its API.
-- Apps that trust Authelia's identity headers (Forgejo, Linkding, Dozzle, FreshRSS, Beszel) trust them only
+- Apps that trust Authelia's identity headers (Forgejo, Gitea Mirror, Linkding, Dozzle, FreshRSS, Beszel) trust them only
   from their own network, where Traefik is the only other member. FreshRSS and Beszel also sit on `proxy`
   for Homepage's widgets; a forged header from there gets a 403 or 401.
 - Loki and Prometheus sit on a `monitoring` network that only Traefik, Grafana, Alloy and Homepage join.
@@ -82,7 +82,9 @@ Every item and field in the vault, and how to create each, is in
 | Mac SSH key | Root on the host and LXCs | On device change |
 | OpenTofu state passphrase | Decrypts the committed state | New key + `fallback` block |
 | Cloudflare token | DNS edit on one zone | 1 year |
-| GitHub tokens (Dockhand, Forgejo mirror) | This repo, contents read-only | 1 year at most |
+| GitHub token (Dockhand) | This repo, contents read-only | 1 year at most |
+| GitHub token (Forgejo mirror) | All your repos, contents read-only | 1 year at most |
+| Forgejo token (Gitea Mirror) | Your Forgejo repos, read and write | On suspicion; new on every rebuild |
 | Renovate app | This repo | Uninstall to revoke |
 | ntfy sender tokens (Grafana, Scrutiny, ClamAV, Proxmox host, PBS) | Write-only on `homelab-*`, one per sender | Per sender |
 | Hawser tokens | Full Docker API on docker-hw or kasm, over TLS | On suspicion, both sides |

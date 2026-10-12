@@ -226,6 +226,11 @@
         href: https://forgejo.{{HOMEPAGE_VAR_DOMAIN}}
         description: Local GitHub mirror # Homepage widget type gitea works with Forgejo (needs a token)
 
+    - Gitea Mirror:
+        icon: gitea-mirror.png
+        href: https://gitea-mirror.{{HOMEPAGE_VAR_DOMAIN}}
+        description: Mirrors every GitHub repo into Forgejo
+
 - Access:
     - Traefik:
         icon: traefik.svg

@@ -63,6 +63,8 @@ services:
         aliases: ["auth.${DOMAIN}", "dockhand.${DOMAIN}"]
       socket-proxy:
       forgejo:
+      gitea-mirror:
+        aliases: ["forgejo.${DOMAIN}"] # Gitea Mirror reaches Forgejo's API through Traefik
       linkding:
       freshrss:
       beszel-web:
@@ -95,6 +97,8 @@ networks:
   dockhand:
     external: true
   forgejo:
+    external: true
+  gitea-mirror:
     external: true
   linkding:
     external: true

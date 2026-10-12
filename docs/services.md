@@ -10,7 +10,7 @@
 | docker-apps | Monitoring | monitoring (Prometheus, Grafana, Loki, Alloy, exporters for Proxmox, qBittorrent, AdGuard), beszel, dozzle, scrutiny, speedtest-tracker, librespeed, changedetection, ntfy, homepage |
 | docker-apps | Media | calibre-web, metube, tautulli, vpn-services (Gluetun + qBittorrent + Speedtest Tracker through the VPN) |
 | docker-apps | Productivity | mealie, freshrss, wallos, vikunja, memos, linkding |
-| docker-apps | Tools | convertx, stirling-pdf, excalidraw, searxng, code-server, forgejo, filebrowser, syncthing, rustdesk |
+| docker-apps | Tools | convertx, stirling-pdf, excalidraw, searxng, code-server, forgejo (+ Gitea Mirror), filebrowser, syncthing, rustdesk |
 
 Plex, Kasm, AdGuard, PBS, Tailscale, Samba and ClamAV each have their own LXC; Home Assistant is a VM.
 
@@ -39,7 +39,7 @@ register it. After that, a merge and `make release` redeploy it within 5 minutes
 - Web apps join the `proxy` network. Traefik labels set the hostname `<name>.<domain>` and the middlewares
   (headers, LAN/Tailscale allow-list, Authelia). Homepage entries are all in
   `stacks/homepage/config/services.yaml`.
-- Apps that trust Authelia's `Remote-User` header (Dockhand, Forgejo, Linkding, Dozzle) and code-server
+- Apps that trust Authelia's `Remote-User` header (Dockhand, Forgejo, Gitea Mirror, Linkding, Dozzle) and code-server
   aren't on `proxy`. Each has its own network that only Traefik joins, so other containers can't forge the
   header. Their API and git routes that skip Authelia strip it.
 - Images are pinned by tag and digest. `stacks/check.sh` enforces this and the other container rules
