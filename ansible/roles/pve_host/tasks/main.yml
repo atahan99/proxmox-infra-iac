@@ -43,6 +43,11 @@
     state: present
   ignore_errors: "{{ ansible_check_mode }}" # non-free-firmware is only simulated in check mode
 
+- name: Packages | btop (live CPU, temperatures, per-process view)
+  ansible.builtin.apt:
+    name: btop
+    state: present
+
 # Debian and Proxmox packages are upgraded together by hand (`apt full-upgrade`), never automatically.
 - name: Baseline | Debian security updates only (never auto-reboots), key-only SSH; same as every LXC
   ansible.builtin.include_role:

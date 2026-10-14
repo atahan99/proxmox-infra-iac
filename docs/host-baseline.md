@@ -12,6 +12,7 @@ disk UUID come from `homelab.env`.
 | Network | `vmbr0` static at `PVE_IP` with the NIC's MAC; the NIC itself manual | The bridge port must not run DHCP |
 | Apt | deb822 sources with `non-free-firmware`, no-subscription repo on, enterprise off, legacy and Ceph files removed | Clean `apt update`, firmware available |
 | Microcode | `intel-microcode` | Otherwise the N150 runs the BIOS microcode; needs one reboot |
+| Tools | `btop` | Live CPU, temperatures and per-process view when the fan gets loud |
 | Updates | unattended-upgrades for Debian security only, no reboot (shared `common` baseline) | Proxmox and Debian packages are upgraded together, by hand |
 | Subscription pop-up | Patched, and re-patched by an apt hook after `proxmox-widget-toolkit` updates | |
 | Single node | `pve-ha-lrm`, `pve-ha-crm`, `corosync` off | No cluster |
