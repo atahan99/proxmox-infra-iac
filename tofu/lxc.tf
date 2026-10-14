@@ -43,6 +43,7 @@ resource "proxmox_virtual_environment_container" "lxc" {
 
   cpu {
     cores = each.value.cores
+    limit = each.value.cpu_limit
   }
 
   memory {

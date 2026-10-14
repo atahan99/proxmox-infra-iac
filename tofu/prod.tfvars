@@ -69,15 +69,16 @@ lxcs = {
     tags         = ["docker"]
   }
   plex = {
-    vmid    = 101
-    os      = "ubuntu"
-    cores   = 2
-    memory  = 2048
-    disk    = 8
-    mac     = "BC:24:11:3F:15:76"
-    host    = 113
-    startup = 6
-    tags    = ["media"]
+    vmid      = 101
+    os        = "ubuntu"
+    cores     = 2
+    cpu_limit = 1 # Butler scans (loudness, credits) pin a core; GPU does real transcodes
+    memory    = 2048
+    disk      = 8
+    mac       = "BC:24:11:3F:15:76"
+    host      = 113
+    startup   = 6
+    tags      = ["media"]
   }
   kasm = {
     vmid    = 103

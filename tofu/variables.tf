@@ -31,7 +31,8 @@ variable "lxcs" {
     vmid         = number
     os           = optional(string, "debian") # debian | ubuntu, see local.templates
     cores        = optional(number, 1)
-    memory       = number # MiB
+    cpu_limit    = optional(number, 0) # cores worth of CPU time across all cores, 0 = no cap
+    memory       = number              # MiB
     swap         = optional(number, 512)
     disk         = number # GiB, local-lvm
     mac          = string
