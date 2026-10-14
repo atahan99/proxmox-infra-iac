@@ -62,6 +62,8 @@ services:
     networks: [frigate]
 
   # The C920's microphone, published as rtsp://mic:8554/mic; go2rtc adds it to the camera's stream.
+  # On demand: ffmpeg runs only while a live view pulls audio, and stops 10 s after the last viewer leaves
+  # (always-on cost ~11% of a core for the noise filter, plus Frigate's AAC re-encode).
   mic:
     image: bluenviron/mediamtx:1.21.2-ffmpeg@sha256:c0feb4acc548d5f410d57d9046f62dfa355e2abc4098f5243de9e86430c77a95
     container_name: frigate-mic
@@ -74,10 +76,10 @@ services:
     environment:
       # -ac 2: the mic is stereo only (mono fails with "cannot set channel count to 1"); 32000 Hz is what
       # the device negotiates.
-      MTX_PATHS_MIC_RUNONINIT: >-
+      MTX_PATHS_MIC_RUNONDEMAND: >-
         ffmpeg -nostdin -use_wallclock_as_timestamps 1 -f alsa -ac 2 -ar 32000 -i hw:CARD=C920,DEV=0
         -af highpass=f=120,afftdn=nf=-20,alimiter=limit=0.95 -c:a aac -b:a 64k -f rtsp rtsp://127.0.0.1:8554/mic
-      MTX_PATHS_MIC_RUNONINITRESTART: "yes"
+      MTX_PATHS_MIC_RUNONDEMANDRESTART: "yes"
     networks: [frigate]
 
 networks:

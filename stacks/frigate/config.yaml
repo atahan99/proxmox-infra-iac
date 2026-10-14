@@ -37,7 +37,8 @@ cameras:
   usb_cam:
     ffmpeg:
       inputs:
-        - path: rtsp://localhost:8554/usb_cam
+        # ?video: recording and detection skip the mic, so it only starts for live view (compose.yml, mic).
+        - path: rtsp://localhost:8554/usb_cam?video
           roles: [detect, record]
     detect:
       enabled: true
