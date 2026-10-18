@@ -85,6 +85,17 @@
       groupName: "beszel",
     },
     {
+      description: "linuxserver's old Ubuntu-based tags (20.04.1…) sort above the real 5.x versions",
+      matchPackageNames: ["lscr.io/linuxserver/qbittorrent"],
+      allowedVersions: "<20",
+    },
+    {
+      description: "CI Python: ansible-core 2.21 supports up to 3.14. Lift when ansible-core supports 3.15",
+      matchManagers: ["github-actions"],
+      matchPackageNames: ["python"],
+      allowedVersions: "<3.15",
+    },
+    {
       description: "OpenTofu providers",
       matchManagers: ["terraform"],
       matchUpdateTypes: ["minor", "patch"],
