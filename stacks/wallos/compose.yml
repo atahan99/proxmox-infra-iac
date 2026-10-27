@@ -3,7 +3,7 @@
 name: wallos
 services:
   wallos:
-    image: bellamy/wallos:5.8.3@sha256:0006879778f31a962a3873f7682514b92a3c7665dcbc4764fcc241ad968eaccd
+    image: bellamy/wallos:5.10.2@sha256:8873c2328e745c7ca8ff0e0f5508215219ec5c02a3469c0d8049602be2a2bca3
     container_name: wallos
     restart: unless-stopped
     environment:
