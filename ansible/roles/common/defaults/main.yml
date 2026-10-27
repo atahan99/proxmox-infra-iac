@@ -8,7 +8,7 @@ common_beszel: true
 # release changed after review is caught; CI fails until it matches the new version's checksums file
 # (copy it from there into the Renovate PR).
 # renovate: datasource=github-releases depName=henrygd/beszel
-common_beszel_version: "0.21.0"
+common_beszel_version: "0.21.1"
 common_beszel_sha256: 898d67d456a4feed7d651bbac22def5eb41840d4f3d9bf058a5ed37c8c815599
 common_beszel_port: 45876
 # The hub's key pair lives in the vault: hub_pubkey here and in the agents' env, hub_key in the hub.
