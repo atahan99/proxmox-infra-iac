@@ -1,7 +1,7 @@
 # Web file manager for the USB disk (/mnt/external; same path inside as outside, so share and
 # bookmark paths match). Deliberately no /opt: that holds the app data and /opt/secrets.
-# Config inline below (Compose fills in the domain); users in its database (database.db in its data
-# folder). Login only through Authelia (OIDC): the first login creates the user, Authelia's admins group
+# Config inline below (Compose fills in the domain); users in its database (filebrowser.sqlite in its
+# data folder). Login only through Authelia (OIDC): the first login creates the user, Authelia's admins group
 # makes it an admin. Runs as uid 1000, so new files suit Samba; `filebrowser-init`
 # hands it the data folder (Docker creates it as root).
 name: filebrowser
@@ -44,10 +44,14 @@ configs:
   config:
     content: |
       # File Browser Quantum. Only the USB disk: no /opt (app data, secrets).
-      server:
+      http:
         port: 80
         listen: 0.0.0.0
-        database: /home/filebrowser/data/database.db
+        trustProxyHeaders: true # behind Traefik: OIDC callbacks and client IPs from X-Forwarded-*
+      server:
+        database:
+          path: /home/filebrowser/data/filebrowser.sqlite
+          migrateFrom: /home/filebrowser/data/database.db # v1 BoltDB, imported on the first v2 start
         cacheDir: /home/filebrowser/data/tmp
         sources:
           - path: /host-mnt
