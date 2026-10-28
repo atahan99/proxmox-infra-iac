@@ -92,8 +92,14 @@
     {
       description: "CI Python: ansible-core 2.21 supports up to 3.14. Lift when ansible-core supports 3.15",
       matchManagers: ["github-actions"],
-      matchPackageNames: ["python"],
+      matchDepNames: ["python"], // the package name is actions/python-versions
       allowedVersions: "<3.15",
+    },
+    {
+      description: "OpenTofu in CI is tracked once, by its `# renovate:` comment",
+      matchManagers: ["github-actions"],
+      matchDepNames: ["opentofu"],
+      enabled: false,
     },
     {
       description: "OpenTofu providers",
