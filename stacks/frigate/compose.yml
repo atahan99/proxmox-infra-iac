@@ -65,7 +65,7 @@ services:
   # On demand: ffmpeg runs only while a live view pulls audio, and stops 10 s after the last viewer leaves
   # (always-on cost ~11% of a core for the noise filter, plus Frigate's AAC re-encode).
   mic:
-    image: bluenviron/mediamtx:1.21.2-ffmpeg@sha256:c0feb4acc548d5f410d57d9046f62dfa355e2abc4098f5243de9e86430c77a95
+    image: bluenviron/mediamtx:1.21.3-ffmpeg@sha256:208e9f1740a09a5ee63b6308e77ce0d54fce0456462f640e6bd9acfc62ebb5a2
     container_name: frigate-mic
     restart: unless-stopped
     mem_limit: 256m
