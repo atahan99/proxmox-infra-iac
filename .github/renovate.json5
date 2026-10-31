@@ -57,7 +57,7 @@
       automerge: true,
     },
     {
-      description: "Image patch versions: auto-merge when CI is green. Merging deploys nothing; `make release` does",
+      description: "Image patch versions: auto-merge when CI is green. Merging ships it: the release workflow moves `deploy`",
       matchDatasources: ["docker"],
       matchUpdateTypes: ["patch"],
       automerge: true,

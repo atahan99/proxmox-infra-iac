@@ -26,7 +26,7 @@ The `dockhand_config` role sets Dockhand up through its API: admin, login, GitHu
 `homelab_stack_env` as env vars.
 
 Adding an app: a folder under `stacks/`, one line in `docker_apps_stacks`, `make apps ENV=prod` once to
-register it. After that, a merge and `make release` redeploy it within 5 minutes.
+register it. After that, a merge redeploys it within 5 minutes of CI going green.
 
 ## Stack conventions
 

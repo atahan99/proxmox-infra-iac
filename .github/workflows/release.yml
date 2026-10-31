@@ -1,0 +1,38 @@
+name: release
+# Moves `deploy` to a commit on main once its CI run is green; Dockhand picks it up within 5 minutes
+# (ADR 4). `make release` does the same by hand.
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    # Only jobs on main get this environment's deploy key, the one non-admin the `deploy` ruleset lets through.
+    # GITHUB_TOKEN can't be the bypass: a workflow edited on a PR branch could then push too.
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+          fetch-depth: 0
+      - name: Push the green commit to deploy (fast-forward only)
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          # A later commit already shipped (make release, or a newer run): nothing to do.
+          if git merge-base --is-ancestor "$SHA" origin/deploy; then
+            echo "deploy already contains $SHA"; exit 0
+          fi
+          git push origin "$SHA:refs/heads/deploy"

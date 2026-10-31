@@ -10,10 +10,10 @@ Application deployment follows a gated, pull-based GitOps workflow:
 
 1. Renovate proposes updates for container images and other tracked dependencies, with images pinned by digest.
 2. GitHub Actions runs linting, OpenTofu and Home Assistant validation, Gitleaks secret scanning, Trivy configuration scanning, and custom Docker Compose security checks.
-3. CI never deploys. After the exact commit on `main` passes, I explicitly run `make release` to advance the protected `deploy` branch.
+3. Once CI passes on the exact commit on `main`, a release workflow fast-forwards the protected `deploy` branch to it, with a deploy key only jobs on `main` can read (`make release` does the same by hand).
 4. Dockhand polls that branch every five minutes, pulls the approved Compose definitions from Git, and deploys them locally or to the hardware Docker host through Hawser over TLS.
 
-GitHub holds no deployment credentials, and the homelab exposes no webhook or self-hosted Actions runner. Secrets are stored in a Proton Pass vault, read through a read-only access token, resolved at deployment time with `pass-cli`, and rendered only into root-owned files on the target hosts. Plaintext secrets and site-specific values are kept out of the public repository.
+GitHub holds no credentials for the homelab itself (the release key can only move `deploy`), and the homelab exposes no webhook or self-hosted Actions runner. Secrets are stored in a Proton Pass vault, read through a read-only access token, resolved at deployment time with `pass-cli`, and rendered only into root-owned files on the target hosts. Plaintext secrets and site-specific values are kept out of the public repository.
 
 Traefik provides internal routing and a wildcard Let's Encrypt certificate through Cloudflare DNS-01. Authelia provides single sign-on (SSO) with 2FA for most web services, through forward authentication and OIDC, while Home Assistant, Plex, Immich and Frigate retain native authentication for mobile-client compatibility. Private access is provided over the LAN and through a Tailscale subnet router and exit node; Plex on TCP 32400 is the only intentional public exception. AdGuard Home runs on a primary LXC with a Raspberry Pi replica, synchronized every five minutes and presented through a keepalived virtual IP for DNS failover.
 
@@ -38,7 +38,7 @@ flowchart LR
   Mac["Mac: make"] -- "OpenTofu" --> G["Guests<br/>9 LXCs + HAOS VM"]
   Mac -- "Ansible" --> H["Host, guest OS,<br/>core stacks"]
   PP["Proton Pass"] -- "secrets at deploy time" --> Mac
-  Mac -- "push" --> GH["GitHub main"] -- "CI green,<br/>make release" --> DB["deploy branch"]
+  Mac -- "push" --> GH["GitHub main"] -- "CI green,<br/>release workflow" --> DB["deploy branch"]
   DB -- "pulled every 5 min" --> D["Dockhand<br/>app stacks"]
 ```
 

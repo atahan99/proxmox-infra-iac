@@ -125,15 +125,15 @@ flowchart LR
 
 ## Deploys
 
-Dockhand deploys the `deploy` branch, never `main`. `make release` moves `deploy` to `origin/main` only
-if the latest CI run on `main` passed for that commit ([ADR 4](adr/4-pull-based-deploys.md)).
+Dockhand deploys the `deploy` branch, never `main`. The release workflow moves `deploy` to a commit on
+`main` once its CI run passed (`make release` by hand) ([ADR 4](adr/4-pull-based-deploys.md)).
 
 ```mermaid
 sequenceDiagram
   participant R as Renovate or me
   participant G as GitHub main
   participant C as CI
-  participant M as make release
+  participant M as release workflow
   participant B as GitHub deploy
   participant D as Dockhand
   R->>G: PR, merge
@@ -148,7 +148,7 @@ sequenceDiagram
 
 | What | How it updates | When |
 |---|---|---|
-| App containers | Renovate PR, merge, `make release`, Dockhand | On release |
+| App containers | Renovate PR, merge, release workflow, Dockhand | On green CI |
 | LXC OS packages (Debian, Ubuntu; pbs security only) | unattended-upgrades, no reboot | Daily |
 | LXC third-party repos (Docker, Plex, Kasm, Tailscale, PBS) | `apt full-upgrade` by hand; a weekly ntfy lists what's pending | Manual |
 | Host: Debian security | unattended-upgrades, no reboot | Daily |

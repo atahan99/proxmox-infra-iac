@@ -37,7 +37,11 @@ installed on this repo only. Settings → Rules → Rulesets, both Active:
 | Ruleset | Target | Rules | Bypass |
 |---|---|---|---|
 | `main` | Default branch | Restrict deletions, block force pushes | None |
-| `deploy` | `refs/heads/deploy` | Restrict deletions, block force pushes, restrict updates | Repository admin, always |
+| `deploy` | `refs/heads/deploy` | Restrict deletions, block force pushes, restrict updates | Repository admin, deploy keys; always |
+
+The release workflow's key: `ssh-keygen -t ed25519 -N '' -C release -f release`, `release.pub` added under
+Settings → Deploy keys with write access, environment `release` (Settings → Environments) limited to the
+`main` branch with secret `DEPLOY_KEY` = the private key, then delete both files.
 
 In the vault: every item in [credentials.md](credentials.md) exists, `changeme` where the app doesn't exist
 yet. `immich/db_password` must be the live database's password. The `deploy` branch points at a green

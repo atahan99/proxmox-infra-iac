@@ -28,6 +28,6 @@ Changes are tested against the server without touching the real guests:
   wildcard rewrite) and the web login are tested.
 - Apps on it use the test domain `lab.<domain>`, reached from the Mac via `/etc/hosts` or
   `curl --resolve`. Dockhand on CT 990 follows the `deploy` branch like prod, so a stack change reaches it
-  only after CI passes and `make release`.
+  only after CI passes.
 
 `make apply` / `make destroy` ask for confirmation; `ENV=prod` also needs `CONFIRM=yes`.

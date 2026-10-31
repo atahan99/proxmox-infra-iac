@@ -5,8 +5,8 @@ to bottom.
 
 | What changed | Ship with | Applied by |
 |---|---|---|
-| A git stack in `stacks/` | Merge, `make release` | Dockhand, within 5 minutes |
-| A core stack (traefik, authelia, dockhand, socket-proxy, hawser) or any `*.tpl` | Merge, `make release`, `make apps ENV=prod` | Ansible |
+| A git stack in `stacks/` | Merge (the release workflow moves `deploy` once CI is green) | Dockhand, within 5 minutes |
+| A core stack (traefik, authelia, dockhand, socket-proxy, hawser) or any `*.tpl` | Merge, `make apps ENV=prod` | Ansible |
 | A guest role or the inventory | `make config ENV=prod` | Ansible |
 | The host (`pve_host`) | `make host ENV=prod` | Ansible; some changes need a reboot |
 | Guests in `tofu/` | `make guests ENV=prod CONFIRM=yes` | OpenTofu, then `lxc_devices` |
@@ -14,7 +14,7 @@ to bottom.
 
 ## Before
 
-- [ ] CI is green on the commit (`make release` refuses otherwise).
+- [ ] Merging ships: a stack needing a new network or `*.tpl` gets `make apps ENV=prod` first.
 - [ ] Renovate PRs: read the release notes of anything beyond a patch or digest bump.
 - [ ] Any new secret is in the vault (`make apps` stops on a missing item or field).
 - [ ] Ansible: the dry run shows only what you expect (`make host-check`, `make devices-check ENV=prod`,
@@ -38,7 +38,7 @@ widget or Grafana panel loses its data.
 
 | What | How |
 |---|---|
-| Git stack | Revert on `main`, wait for CI, `make release`. An older image doesn't undo a database migration: restore the stack's data from PBS |
+| Git stack | Revert on `main`; it ships once CI is green. An older image doesn't undo a database migration: restore the stack's data from PBS |
 | Core stack, role, host | Revert, re-run the same `make` target |
 | Guest replaced by mistake | Restore it from PBS ([install.md](install.md#restore-every-guest-from-pbs)) |
 | New kernel breaks passthrough | `make pin-kernel VERSION=<previous>`, reboot |

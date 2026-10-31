@@ -12,8 +12,9 @@
   secrets are generated on docker-apps; Proxmox, PBS and Immich keep a copy of their own secret. Proxmox and
   PBS keep `root@pam`, reachable on their direct address without Authelia.
 - The server only connects out: Dockhand pulls from GitHub, Renovate and CI run on GitHub. GitHub holds no
-  deploy credentials.
-- A push to `main` deploys nothing. Only `make release` moves `deploy`, and only to a commit CI passed
+  credentials for the server; its one deploy key can only move `deploy`.
+- A push to `main` ships only after CI passes on it: the release workflow (or `make release`) moves `deploy`.
+  Its deploy key sits in the `release` environment, which only jobs on `main` can use
   ([ADR 4](adr/4-pull-based-deploys.md)).
 - SSH is key-only on the host and every LXC (`/etc/ssh/sshd_config.d/10-homelab.conf`). The Proxmox root
   password still works for the web UI and console.
