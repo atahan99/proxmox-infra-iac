@@ -55,7 +55,7 @@ services:
       traefik.http.services.speedtest-vpn.loadbalancer.server.port: "80"
 
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:5.2.4@sha256:b522f9f4b769f8f36d49d22d5eb6a92e9aa18904c6a1830b1439df511ec21983
+    image: lscr.io/linuxserver/qbittorrent:5.2.4@sha256:1ea873647c43d566f251a7122aee330b184509c57ee3257ed19f62dac0f8f24b
     container_name: qbittorrent
     restart: unless-stopped
     network_mode: service:gluetun
@@ -77,7 +77,7 @@ services:
       - /mnt/external/Movies:/movies
 
   speedtest-vpn:
-    image: lscr.io/linuxserver/speedtest-tracker:1.15.0@sha256:3f8a2d06703bde3a6d04dcc8178fcd6251b601ce3b8b52958779d5335b5719d1
+    image: lscr.io/linuxserver/speedtest-tracker:1.15.0@sha256:7f296f2f4f3fbc5ad7281a83743d3342a7ff143b9f382f0c8e87bdf5a4b29438
     container_name: speedtest-vpn
     restart: unless-stopped
     network_mode: service:gluetun
