@@ -109,7 +109,7 @@ CI runs on every push and PR:
 Supply chain:
 
 - Actions pinned by SHA; linters pinned in `requirements-ci.txt`; gitleaks, OpenTofu and Trivy versions
-  pinned in `ci.yml` and bumped by Renovate. The gitleaks download is checksum-verified.
+  pinned in `ci.yml` and bumped by Renovate. The gitleaks and Trivy downloads are checksum-verified.
 - Renovate waits 3 days after a release, pins image digests, and raises OSV and GitHub vulnerability
   alerts.
 - Apt signing keys (Docker, Tailscale, Plex) and the HAOS image are checked against pinned SHA-256 sums;
