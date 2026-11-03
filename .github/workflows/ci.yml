@@ -49,5 +49,5 @@ jobs:
           pin=$(sed -n 's/^common_beszel_sha256: //p' $f)
           want=$(curl -sSfL "https://github.com/henrygd/beszel/releases/download/v$v/beszel_${v}_checksums.txt" \
             | awk '$2 == "beszel-agent_linux_amd64.tar.gz" {print $1}')
-          [ -n "$want" ] && [ "$pin" = "$want" ] || { echo "common_beszel_sha256 for $v should be $want"; exit 1; }
+          if [ -z "$want" ] || [ "$pin" != "$want" ]; then echo "common_beszel_sha256 for $v should be $want"; exit 1; fi
       - run: make ha-check
