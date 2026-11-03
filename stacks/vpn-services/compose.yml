@@ -77,7 +77,7 @@ services:
       - /mnt/external/Movies:/movies
 
   speedtest-vpn:
-    image: lscr.io/linuxserver/speedtest-tracker:1.15.0@sha256:7f296f2f4f3fbc5ad7281a83743d3342a7ff143b9f382f0c8e87bdf5a4b29438
+    image: lscr.io/linuxserver/speedtest-tracker:1.15.1@sha256:14d56d7c4ff0af18f0a09be8494352ba40d23196e78c5f812cee69afaa1edc45
     container_name: speedtest-vpn
     restart: unless-stopped
     network_mode: service:gluetun
