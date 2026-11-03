@@ -4,7 +4,7 @@
 name: metube
 services:
   metube:
-    image: ghcr.io/alexta69/metube:2026.09.29@sha256:8e2fe9beeefc55a02f6e1d04cad0fc3c22e8f067d309188f016551dc99ec27b3
+    image: ghcr.io/alexta69/metube:2026.11.01@sha256:a97f455f4b56044debe1a5ce31ff01a9cb20e9e36322ba04f8dd2bb0539b9ec7
     container_name: metube
     restart: unless-stopped
     environment:
