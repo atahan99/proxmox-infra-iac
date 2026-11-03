@@ -7,6 +7,8 @@
 
   // Supply-chain buffer: bad releases are usually pulled within hours. Security fixes skip this.
   minimumReleaseAge: "3 days",
+  // ghcr/lscr/forgejo publish no release dates; without this their updates wait forever
+  minimumReleaseAgeBehaviour: "timestamp-optional",
 
   prConcurrentLimit: 10,
   prHourlyLimit: 0,
@@ -57,9 +59,9 @@
       automerge: true,
     },
     {
-      description: "Image patch versions: auto-merge when CI is green. Merging ships it: the release workflow moves `deploy`",
+      description: "Image minor and patch versions: auto-merge when CI is green. Merging ships it: the release workflow moves `deploy`",
       matchDatasources: ["docker"],
-      matchUpdateTypes: ["patch"],
+      matchUpdateTypes: ["minor", "patch"],
       automerge: true,
     },
     {
