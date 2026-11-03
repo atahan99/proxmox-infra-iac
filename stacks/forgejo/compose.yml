@@ -62,7 +62,7 @@ services:
     network_mode: none
 
   gitea-mirror:
-    image: ghcr.io/raylabshq/gitea-mirror:v3.40.3@sha256:786b193599c60138a3fa04b8d7abc45faef9748af030d49da802c5a478314154
+    image: ghcr.io/raylabshq/gitea-mirror:v3.51.1@sha256:39fcb330f3882b7f11fc38af1ebb98903ba496e6b159f7c92dbe3438dda0f13d
     container_name: gitea-mirror
     restart: unless-stopped
     depends_on:
