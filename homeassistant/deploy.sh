@@ -19,6 +19,7 @@ COPYFILE_DISABLE=1 tar --no-xattrs --exclude secrets.yaml.tpl -cf - . | ssh "$ha
 # (it comes back with the backup, still naming the old proxy). Set Traefik's address there, with Core stopped.
 proxy=${HOMELAB_LAN_PREFIX}.122/32 # docker-apps, as docker_apps_ip in secrets.yaml.tpl
 ssh "$ha" 'ha core check'
+# shellcheck disable=SC2029 # $proxy is meant to expand here, everything escaped expands on HA
 ssh "$ha" "f=/config/.storage/http
 if [ -f \$f ] && [ \"\$(jq -c '.data.stable | [.trusted_proxies, .login_attempts_threshold]' \$f)\" != '[[\"$proxy\"],5]' ]; then
   ha core stop && jq '.data.stable.trusted_proxies = [\"$proxy\"] | .data.stable.login_attempts_threshold = 5' \$f >\$f.new && mv \$f.new \$f && ha core start

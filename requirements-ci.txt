@@ -1,2 +1,4 @@
+actionlint-py==1.7.12.25
 ansible-lint==26.10.1
 yamllint==1.38.0
+zizmor==1.32.0

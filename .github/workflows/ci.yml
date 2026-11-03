@@ -18,6 +18,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # gitleaks scans the full history
+          persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.14"
@@ -29,7 +30,7 @@ jobs:
       - uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
         with:
           version: v0.76.1
-      - name: Install gitleaks, yamllint, ansible-lint (pinned in requirements-ci.txt)
+      - name: Install gitleaks, yamllint, ansible-lint, actionlint, zizmor (pinned in requirements-ci.txt)
         run: |
           cd /tmp
           base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
@@ -39,6 +40,8 @@ jobs:
           sudo tar -xzf "$tgz" -C /usr/local/bin gitleaks
           pip install -r "$GITHUB_WORKSPACE/requirements-ci.txt"
       - run: make lint
+        env:
+          GH_TOKEN: ${{ github.token }} # zizmor's online audits (impostor commits, vulnerable actions)
       - name: Pinned download hashes match their releases (a Renovate bump fails here until the hash is updated)
         run: |
           f=ansible/roles/common/defaults/main.yml

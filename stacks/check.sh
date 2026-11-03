@@ -2,7 +2,8 @@
 # Lint for the compose stacks (Trivy has no compose scanner). Every stack must render with
 # `docker compose config`, pin every image by tag + digest, and none may run privileged, share the host's
 # network or PIDs, add the escape capabilities, drop AppArmor, or mount the Docker socket or the folders
-# holding it (except SOCKET_OK services: they exist to manage Docker).
+# holding it (except SOCKET_OK services: they exist to manage Docker). Every service sets a restart policy, so
+# it comes back after a host crash (one-shot inits say restart: "no").
 set -euo pipefail
 SOCKET_OK="socket-proxy/socket-proxy agents/socket-proxy agents/dozzle-agent dockhand/dockhand hawser/hawser"
 # Dummy site values: Ansible writes the real ones into each stack's .env.
@@ -24,6 +25,8 @@ for dir in */; do
   bad=$(q '[.value.cap_add[]? | ascii_upcase | ltrimstr("CAP_")] | any(. == "ALL" or . == "SYS_ADMIN" or . == "SYS_PTRACE" or . == "SYS_MODULE")')
   [ -z "$bad" ] || fail cap_add "$bad"
   bad=$(q '[.value.security_opt[]?] | any(test("unconfined"))'); [ -z "$bad" ] || fail "security_opt unconfined" "$bad"
+  bad=$(q '.value.restart == null'); [ -z "$bad" ] || fail "no restart policy" "$bad"
+  # shellcheck disable=SC2016 # jq variables, not shell ones
   bad=$(q '.key as $k | ($ok | contains(" \($s)/\($k) ") | not) and ([.value.volumes[]?.source // empty] | any(endswith("docker.sock") or . == "/" or . == "/run" or . == "/var/run"))')
   [ -z "$bad" ] || fail "mounts the Docker socket (use socket-proxy)" "$bad"
   [ $ok -eq 0 ] || echo "ok   $stack"

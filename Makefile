@@ -79,6 +79,9 @@ lint: export TF_VAR_gateway = 192.0.2.254
 lint: export TF_VAR_dns_vip = 192.0.2.53
 lint: leak-check
 	yamllint .
+	shellcheck $$(git ls-files '*.sh')
+	actionlint
+	zizmor -q .github/workflows
 	stacks/check.sh
 	ansible-lint ansible/
 	tofu fmt -check -recursive tofu

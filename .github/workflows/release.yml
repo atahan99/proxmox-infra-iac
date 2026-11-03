@@ -2,6 +2,7 @@ name: release
 # Moves `deploy` to a commit on main once its CI run is green; Dockhand picks it up within 5 minutes
 # (ADR 4). `make release` does the same by hand.
 on:
+  # zizmor: ignore[dangerous-triggers] only pushes to main pass the job's `if`; it runs no PR code
   workflow_run:
     workflows: [ci]
     types: [completed]
@@ -25,7 +26,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-          ssh-key: ${{ secrets.DEPLOY_KEY }}
+          ssh-key: ${{ secrets.DEPLOY_KEY }} # zizmor: ignore[artipacked] the push needs it; no artifacts uploaded
           fetch-depth: 0
       - name: Push the green commit to deploy (fast-forward only)
         env:

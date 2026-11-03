@@ -55,6 +55,7 @@ services:
   # Forgejo's API through Traefik too (forgejo.<domain> is a Traefik alias there), never the forgejo network.
   gitea-mirror-init:
     image: busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
+    restart: "no"
     command: [chown, "1001:1001", /data] # the image's user; Docker creates the folder as root
     volumes:
       - /opt/appdata/gitea-mirror:/data
