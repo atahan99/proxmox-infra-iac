@@ -158,9 +158,60 @@
   changed_when: true
   no_log: "{{ not (dockhand_config_debug | default(false) | bool) }}" # the session cookie
 
+# envVars above reach a stack only when it is created: keep the existing ones in line with homelab_stack_env.
+# Dockhand's PUT replaces the whole list, so keys added by hand go back as they are (a masked secret, '***',
+# keeps its stored value). Only the repo's stacks; one made by hand in the UI is left alone. A stack is
+# redeployed only if its compose.yml reads a changed key (${KEY}); the rest pick it up on their next deploy.
+- name: Git stacks | env vars of the existing ones
+  ansible.builtin.uri:
+    url: "{{ dockhand_config_url }}/api/stacks/{{ item.stackName }}/env?env={{ item.environmentId }}"
+    headers: {Cookie: "{{ dockhand_config_login.cookies_string }}"}
+  loop: "{{ dockhand_config_state.results[3].json | selectattr('stackName', 'in', dockhand_config_all_stacks | map('first')) | list }}"
+  loop_control:
+    label: "{{ item.stackName }}"
+  register: dockhand_config_env
+  check_mode: false
+  no_log: "{{ not (dockhand_config_debug | default(false) | bool) }}" # the session cookie
+
+- name: Git stacks | env vars that differ from homelab_stack_env
+  ansible.builtin.set_fact:
+    dockhand_config_env_drift: "{{ dockhand_config_env_drift | default([]) + [{'stack': item.item, 'keys': dockhand_config_env_off | map(attribute='key') | list, 'redeploy': dockhand_config_env_off | map(attribute='key') | select('in', dockhand_config_compose_vars) | list | length > 0, 'variables': item.json.variables | rejectattr('key', 'in', homelab_stack_env) | list + dockhand_config_env_want}] }}"
+  vars:
+    dockhand_config_env_want: "{{ homelab_stack_env | dict2items(key_name='key', value_name='value') | map('combine', {'isSecret': false}) | list }}"
+    dockhand_config_env_off: "{{ dockhand_config_env_want | reject('in', item.json.variables) | list }}"
+    dockhand_config_compose_vars: "{{ lookup('ansible.builtin.file', role_path ~ '/../../../stacks/' ~ item.item.stackName ~ '/compose.yml') | regex_findall('\\$\\{(\\w+)') }}"
+  loop: "{{ dockhand_config_env.results }}"
+  loop_control:
+    label: "{{ item.item.stackName }}"
+  when: dockhand_config_env_off | length > 0
+  no_log: "{{ not (dockhand_config_debug | default(false) | bool) }}" # the result carries the session cookie
+
+# Separate from the PUT so that check mode (where uri never runs) still shows what would change.
+- name: Git stacks | stacks whose env vars will change
+  ansible.builtin.debug:
+    msg:
+      keys: "{{ dockhand_config_env_drift | default([]) | map(attribute='keys') | flatten | unique }}"
+      stacks: "{{ dockhand_config_env_drift | default([]) | map(attribute='stack.stackName') }}"
+      redeploy: "{{ dockhand_config_env_drift | default([]) | selectattr('redeploy') | map(attribute='stack.stackName') }}"
+  changed_when: dockhand_config_env_drift | default([]) | length > 0
+
+- name: Git stacks | env vars in line with homelab_stack_env
+  ansible.builtin.uri:
+    url: "{{ dockhand_config_url }}/api/stacks/{{ item.stack.stackName }}/env?env={{ item.stack.environmentId }}"
+    method: PUT
+    headers: {Cookie: "{{ dockhand_config_login.cookies_string }}"}
+    body_format: json
+    body: {variables: "{{ item.variables }}"}
+  loop: "{{ dockhand_config_env_drift | default([]) }}"
+  loop_control:
+    label: "{{ item.stack.stackName }}"
+  changed_when: true
+  no_log: "{{ not (dockhand_config_debug | default(false) | bool) }}" # the session cookie
+
 # Dockhand redeploys on a git change, not when core_stacks re-rendered a stack's secrets (e.g. Homepage after
-# you filled an api_key): redeploy those, on every host. Names come from core_stacks_touched of each host.
-- name: Git stacks | redeploy the existing ones whose secrets changed
+# you filled an api_key) or the env vars above changed: redeploy those, on every host. Secret names come from
+# core_stacks_touched of each host.
+- name: Git stacks | redeploy the existing ones whose secrets or env vars changed
   ansible.builtin.uri:
     url: "{{ dockhand_config_url }}/api/git/stacks/{{ item.id }}/deploy"
     method: POST
@@ -169,7 +220,7 @@
     timeout: 600
   vars:
     dockhand_config_touched: "{{ ([inventory_hostname] + dockhand_config_remotes | map(attribute='name')) | map('extract', hostvars) | map(attribute='core_stacks_touched', default=[]) | flatten }}"
-  loop: "{{ dockhand_config_state.results[3].json | selectattr('stackName', 'in', dockhand_config_touched) | list }}"
+  loop: "{{ (dockhand_config_state.results[3].json | selectattr('stackName', 'in', dockhand_config_touched) | list + dockhand_config_env_drift | default([]) | selectattr('redeploy') | map(attribute='stack') | list) | unique }}"
   loop_control:
     label: "{{ item.stackName }}"
   changed_when: true

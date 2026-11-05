@@ -12,7 +12,7 @@ dockhand_config_repo:
   branch: deploy
 dockhand_config_sync_cron: "*/5 * * * *" # how often Dockhand checks git for changes
 
-# Git stacks on this host: folder names under stacks/. Every stack gets homelab_stack_env as env vars.
+# Git stacks on this host: folder names under stacks/. Every stack gets homelab_stack_env as env vars (kept in sync on each run).
 dockhand_config_stacks: []
 
 # Other Docker hosts Dockhand manages through their Hawser agent: inventory name (= environment name); the IP

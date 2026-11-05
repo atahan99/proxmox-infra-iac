@@ -23,7 +23,8 @@ exactly that certificate. kasm is monitor-only, since Kasm manages its own conta
 The `dockhand_config` role sets Dockhand up through its API: admin, login, GitHub credential, repository
 (branch `deploy`), and one git stack per entry in the inventory (`docker_apps_stacks` in
 `group_vars/docker_apps.yml`, `[agents, frigate, immich]` for docker-hw). Each stack gets
-`homelab_stack_env` as env vars.
+`homelab_stack_env` as env vars. Every `make apps` puts them back on the existing stacks too (a new key is added
+and a changed value updated, while keys added by hand in the UI stay) and redeploys the stacks that changed.
 
 Adding an app: a folder under `stacks/`, one line in `docker_apps_stacks`, `make apps ENV=prod` once to
 register it. After that, a merge redeploys it within 5 minutes of CI going green.
