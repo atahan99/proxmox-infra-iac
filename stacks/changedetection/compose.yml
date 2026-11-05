@@ -3,7 +3,7 @@
 name: changedetection
 services:
   changedetection:
-    image: lscr.io/linuxserver/changedetection.io:0.60.10@sha256:93eb232bd7828ebe4efac81765d108f9f54ef67918ff03eb85524f847c54bc1e
+    image: lscr.io/linuxserver/changedetection.io:0.70.1@sha256:fc244f237d22992332279c00d4ff8ab849690f472a69a178638faa1637423bd5
     container_name: changedetection
     restart: unless-stopped
     environment:
