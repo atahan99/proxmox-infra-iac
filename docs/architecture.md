@@ -44,7 +44,7 @@ host numbers and assumes a /24.
 | 101 | plex | Ubuntu 26.04 | .113 | 2 / 2 GB / 8 GB | Plex, iGPU transcoding |
 | 102 | haos (VM) | HAOS 18.3 | .118 | 2 / 4 GB / 32 GB | Home Assistant |
 | 103 | kasm | Debian 13 | .117 | 4 / 8 GB / 120 GB | Kasm Workspaces |
-| 104 | docker-hw | Debian 13 | .120 | 4 / 6 GB / 50 GB | Frigate (Coral, webcam, iGPU), Immich. **Privileged** |
+| 104 | docker-hw | Debian 13 | .120 | 4 / 8 GB / 50 GB | Frigate (Coral, webcam, iGPU), Immich. **Privileged** |
 | 105 | tailscale | Debian 13 | .121 | 2 / 512 MB / 8 GB | Subnet router and exit node |
 | 106 | adguard-primary | Debian 13 | .4, VIP .5 | 2 / 1 GB / 12 GB | DNS, keepalived MASTER |
 | 108 | pbs | Debian 13 | .132 | 2 / 2 GB / 16 GB | Proxmox Backup Server, datastore on the USB disk |
