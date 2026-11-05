@@ -11,7 +11,9 @@
   vars:
     oidc_remote_meshmonitor_env:
       ALLOWED_ORIGINS: "http://{{ hostvars[oidc_remote_meshmonitor_host].ansible_host }}:3001,{{ oidc_remote_meshmonitor_url }}"
-      TRUST_PROXY: "true"
+      # Only Traefik's X-Forwarded-For: port 3001 is open on the LAN, and "true" would let any client there
+      # spoof its IP past the login rate limit.
+      TRUST_PROXY: "{{ hostvars['docker-apps'].ansible_host }}"
       COOKIE_SECURE: "true"
       OIDC_ISSUER: "{{ oidc_remote_issuer }}"
       OIDC_CLIENT_ID: meshmonitor
