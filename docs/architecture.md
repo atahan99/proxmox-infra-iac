@@ -50,9 +50,10 @@ host numbers and assumes a /24.
 | 108 | pbs | Debian 13 | .132 | 2 / 2 GB / 16 GB | Proxmox Backup Server, datastore on the USB disk |
 | 109 | docker-apps | Debian 13 | .122 | 4 / 8 GB / 80 GB | Traefik, Authelia, Dockhand, every other app |
 | 110 | security | Debian 13 | .133 | 2 / 2 GB / 8 GB | ClamAV scans of the USB disk (read-only) |
+| 111 | meshmon | Debian 12 (MeshMonitor template) | .134 | 2 / 2 GB / 20 GB | MeshMonitor + its MQTT broker for the Meshtastic gateways. No SSH server: Ansible reaches it with `pct exec` |
 | 990 | iac-test | Debian 13 | .90 | 2 / 6 GB / 50 GB | Lab only, throwaway ([lab-testing.md](runbooks/lab-testing.md)) |
 
-Boot order: adguard-primary, pbs, nas + tailscale, docker-apps, docker-hw + HAOS, plex, kasm + security.
+Boot order: adguard-primary, pbs, nas + tailscale, docker-apps, docker-hw + HAOS, plex, kasm + security + meshmon.
 adguard-primary, pbs and HAOS have deletion protection.
 
 ## Layers

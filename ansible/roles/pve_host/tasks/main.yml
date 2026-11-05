@@ -140,6 +140,14 @@
     creates: "/var/lib/vz/template/cache/{{ item }}"
   loop: "{{ pve_host_lxc_templates }}"
 
+- name: Templates | MeshMonitor (not in Proxmox's index; checked against the pinned SHA-256)
+  ansible.builtin.get_url:
+    url: "https://github.com/Yeraze/meshmonitor/releases/download/v{{ pve_host_meshmonitor_version }}/meshmonitor-{{ pve_host_meshmonitor_version }}-amd64.tar.gz"
+    dest: "/var/lib/vz/template/cache/meshmonitor-{{ pve_host_meshmonitor_version }}-amd64.tar.gz"
+    checksum: "sha256:{{ pve_host_meshmonitor_sha256 }}"
+    mode: "0644"
+  ignore_errors: "{{ ansible_check_mode }}" # nothing is downloaded in check mode
+
 - name: Images | HAOS disk image for OpenTofu's import_from
   ansible.builtin.import_tasks: haos_image.yml
 

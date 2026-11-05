@@ -31,3 +31,4 @@
       KbdInteractiveAuthentication no
     mode: "0644"
   notify: Reload ssh
+  when: common_sshd | default(true) # false: an appliance without an SSH server (meshmon)

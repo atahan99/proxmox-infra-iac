@@ -1,8 +1,8 @@
 # Routes to services outside Docker on docker-apps (file provider; Traefik reloads this on change).
 # Login:
 # - Authelia in front (browser-only UIs): Proxmox, PBS, Kasm, PiKVM.
-# - The app's own login only (apps and integrations can't do Authelia): Home Assistant, Plex, Immich, and
-#   Frigate (Home Assistant's integration calls its API). Still
+# - The app's own login only (apps and integrations can't do Authelia): Home Assistant, Plex, Immich,
+#   MeshMonitor (its own login + Authelia OIDC), and Frigate (Home Assistant's integration calls its API). Still
 #   LAN + Tailscale only, like everything here.
 # Self-signed backends use the `self-signed` transport. ponytail: no verification, the same accepted gap as
 # the Proxmox API (docs/security.md); their CAs are regenerated on every reinstall.
@@ -40,6 +40,10 @@ http:
       rule: Host(`immich.{{ env "DOMAIN" }}`)
       service: immich
       middlewares: [lan-tailscale]
+    meshmon:
+      rule: Host(`meshmon.{{ env "DOMAIN" }}`)
+      service: meshmon
+      middlewares: [lan-tailscale]
 
   services:
     proxmox:
@@ -70,6 +74,9 @@ http:
     immich: # docker-hw
       loadBalancer:
         servers: [{url: 'http://{{ env "DOCKER_HW_IP" }}:2283'}]
+    meshmon: # CT 111
+      loadBalancer:
+        servers: [{url: 'http://{{ env "MESHMON_IP" }}:3001'}]
 
   serversTransports:
     self-signed:

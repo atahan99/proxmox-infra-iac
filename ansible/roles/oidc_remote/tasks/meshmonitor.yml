@@ -1,0 +1,50 @@
+# "Login with Authelia" next to MeshMonitor's own login (the local admin stays as the fallback). Authelia's
+# `admins` group makes you admin. Its secure cookies need HTTPS: through Traefik only, not http://<ip>:3001.
+- name: MeshMonitor | login settings in its env file
+  ansible.builtin.lineinfile:
+    path: /etc/meshmonitor/meshmonitor.env
+    regexp: "^{{ line.key }}="
+    line: "{{ line.key }}={{ line.value }}"
+  loop: "{{ oidc_remote_meshmonitor_env | dict2items }}"
+  loop_control:
+    loop_var: line # `item` is main.yml's app loop
+  vars:
+    oidc_remote_meshmonitor_env:
+      ALLOWED_ORIGINS: "http://{{ hostvars[oidc_remote_meshmonitor_host].ansible_host }}:3001,{{ oidc_remote_meshmonitor_url }}"
+      TRUST_PROXY: "true"
+      COOKIE_SECURE: "true"
+      OIDC_ISSUER: "{{ oidc_remote_issuer }}"
+      OIDC_CLIENT_ID: meshmonitor
+      OIDC_CLIENT_SECRET: "{{ oidc_remote_secret.meshmonitor }}"
+      OIDC_REDIRECT_URI: "{{ oidc_remote_meshmonitor_url }}/api/auth/oidc/callback"
+      OIDC_SCOPES: openid profile email groups
+      OIDC_ADMIN_GROUPS: admins
+  delegate_to: "{{ oidc_remote_meshmonitor_host }}"
+  register: oidc_remote_meshmonitor_lines
+  no_log: true
+
+# Generated once on the CT, never in the vault: a new one only logs everyone out.
+- name: MeshMonitor | session secret
+  ansible.builtin.shell: |
+    set -eo pipefail
+    grep -q '^SESSION_SECRET=.' /etc/meshmonitor/meshmonitor.env && exit 0
+    echo "SESSION_SECRET=$(openssl rand -hex 32)" >> /etc/meshmonitor/meshmonitor.env
+    echo changed
+  args:
+    executable: /bin/bash
+  delegate_to: "{{ oidc_remote_meshmonitor_host }}"
+  register: oidc_remote_meshmonitor_session
+  changed_when: "'changed' in oidc_remote_meshmonitor_session.stdout"
+
+- name: MeshMonitor | env file not world-readable (it holds the client secret)
+  ansible.builtin.file:
+    path: /etc/meshmonitor/meshmonitor.env
+    mode: "0600"
+  delegate_to: "{{ oidc_remote_meshmonitor_host }}"
+
+- name: MeshMonitor | restart on a change
+  ansible.builtin.systemd_service:
+    name: meshmonitor
+    state: restarted
+  delegate_to: "{{ oidc_remote_meshmonitor_host }}"
+  when: oidc_remote_meshmonitor_lines is changed or oidc_remote_meshmonitor_session is changed

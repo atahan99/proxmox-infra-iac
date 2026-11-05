@@ -8,7 +8,7 @@ set -euo pipefail
 SOCKET_OK="socket-proxy/socket-proxy agents/socket-proxy agents/dozzle-agent dockhand/dockhand hawser/hawser"
 # Dummy site values: Ansible writes the real ones into each stack's .env.
 export DOMAIN=example.com TZ=UTC LAN_CIDR=192.0.2.0/24 LATITUDE=0 LONGITUDE=0
-for v in DNS_VIP GATEWAY_IP PVE_IP DOCKER_HW_IP DOCKER_APPS_IP HA_IP PLEX_IP KASM_IP PBS_IP ADGUARD_IP \
+for v in DNS_VIP GATEWAY_IP PVE_IP DOCKER_HW_IP DOCKER_APPS_IP HA_IP PLEX_IP KASM_IP PBS_IP ADGUARD_IP MESHMON_IP \
   RPI3_IP PIKVM_IP MODEM_IP SWITCH_IP AP1_IP AP2_IP; do export "$v=192.0.2.1"; done
 cd "$(dirname "$0")"
 rc=0

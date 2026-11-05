@@ -81,6 +81,8 @@ all:
         pbs: {ansible_host: "{{ homelab_lan_prefix }}.132", vmid: 108, common_updates: security}
         docker-apps: {ansible_host: "{{ homelab_lan_prefix }}.122", vmid: 109, common_beszel: false}
         security: {ansible_host: "{{ homelab_lan_prefix }}.133", vmid: 110}
+        # MeshMonitor's own appliance template has no SSH server: always through the host (pct exec).
+        meshmon: {ansible_host: "{{ homelab_lan_prefix }}.134", vmid: 111, ansible_connection: community.proxmox.proxmox_pct_remote, common_sshd: false}
     # Role groups (hosts defined above under lxcs)
     tailscale_servers:
       hosts:
@@ -107,6 +109,9 @@ all:
     clamav_servers:
       hosts:
         security:
+    meshmonitor_servers: # oidc_remote writes its login settings
+      hosts:
+        meshmon:
     docker_apps:
       vars:
         dockhand_config_remotes:

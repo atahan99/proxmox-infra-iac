@@ -100,6 +100,18 @@ lxcs = {
     startup = 7
     tags    = ["security"]
   }
+  meshmon = {
+    vmid    = 111
+    os      = "meshmonitor"
+    cores   = 2
+    memory  = 2048
+    swap    = 1024
+    disk    = 20
+    mac     = "BC:24:11:E3:28:61"
+    host    = 134
+    startup = 7
+    tags    = ["meshtastic"]
+  }
 }
 
 vms = {

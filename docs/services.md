@@ -12,7 +12,7 @@
 | docker-apps | Productivity | mealie, freshrss, wallos, vikunja, memos, linkding |
 | docker-apps | Tools | convertx, stirling-pdf, excalidraw, searxng, code-server, forgejo (+ Gitea Mirror), filebrowser, syncthing, rustdesk |
 
-Plex, Kasm, AdGuard, PBS, Tailscale, Samba and ClamAV each have their own LXC; Home Assistant is a VM.
+Plex, Kasm, AdGuard, PBS, Tailscale, Samba, ClamAV and MeshMonitor each have their own LXC; Home Assistant is a VM.
 
 ## Dockhand
 

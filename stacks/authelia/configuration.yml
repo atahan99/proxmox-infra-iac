@@ -43,6 +43,10 @@ identity_providers:
       # Authelia template: the PEM key as an indented block
       # yamllint disable-line rule:braces
       - key: {{ secret "/data/oidc/jwks.pem" | mindent 10 "|" | msquote }}
+    # MeshMonitor reads the user's name and groups from the ID token only, not userinfo.
+    claims_policies:
+      meshmonitor:
+        id_token: [preferred_username, email, name, groups]
     # One login for the apps that speak OIDC (the rest sit behind the forward-auth middleware).
     clients:
       - client_id: dockhand
@@ -155,3 +159,14 @@ identity_providers:
           - 'https://immich.{{ env "DOMAIN" }}/user-settings'
           - 'app.immich:///oauth-callback' # the phone app
         scopes: [openid, profile, email]
+      - client_id: meshmonitor
+        client_name: MeshMonitor
+        claims_policy: meshmonitor
+        client_secret: '{{ secret "/data/oidc/meshmonitor.digest" }}'
+        public: false
+        authorization_policy: two_factor
+        consent_mode: implicit
+        token_endpoint_auth_method: client_secret_post
+        redirect_uris:
+          - 'https://meshmon.{{ env "DOMAIN" }}/api/auth/oidc/callback'
+        scopes: [openid, profile, email, groups]

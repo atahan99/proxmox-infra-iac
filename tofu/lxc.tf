@@ -1,8 +1,9 @@
 # Templates are downloaded by Ansible (pve_host).
 locals {
   templates = {
-    debian = "local:vztmpl/debian-13-standard_13.6-1_amd64.tar.zst"
-    ubuntu = "local:vztmpl/ubuntu-26.04-standard_26.04-1_amd64.tar.zst"
+    debian      = "local:vztmpl/debian-13-standard_13.6-1_amd64.tar.zst"
+    ubuntu      = "local:vztmpl/ubuntu-26.04-standard_26.04-1_amd64.tar.zst"
+    meshmonitor = "local:vztmpl/meshmonitor-4.17.2-amd64.tar.gz" # MeshMonitor's prebuilt Debian 12 appliance
   }
 }
 
@@ -64,7 +65,7 @@ resource "proxmox_virtual_environment_container" "lxc" {
 
   operating_system {
     template_file_id = local.templates[each.value.os]
-    type             = each.value.os
+    type             = each.value.os == "ubuntu" ? "ubuntu" : "debian"
   }
 
   # Every unprivileged guest sets nesting (systemd and Docker want it). Any feature on a privileged
@@ -77,6 +78,14 @@ resource "proxmox_virtual_environment_container" "lxc" {
   }
 
   lifecycle {
-    ignore_changes = [features, mount_point, device_passthrough, idmap]
+    # Template and keys only matter at creation (and can't be read back from an imported CT).
+    ignore_changes = [features, mount_point, device_passthrough, idmap, operating_system[0].template_file_id, initialization[0].user_account]
   }
+}
+
+# CT 111 was built by hand before it was codified; once applied, this block is a no-op.
+import {
+  for_each = { for k, v in var.lxcs : k => v if k == "meshmon" } # prod only
+  to       = proxmox_virtual_environment_container.lxc[each.key]
+  id       = "${var.node}/${each.value.vmid}"
 }

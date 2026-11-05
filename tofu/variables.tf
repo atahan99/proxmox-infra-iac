@@ -29,7 +29,7 @@ variable "ssh_public_keys" {
 variable "lxcs" {
   type = map(object({
     vmid         = number
-    os           = optional(string, "debian") # debian | ubuntu, see local.templates
+    os           = optional(string, "debian") # debian | ubuntu | meshmonitor, see local.templates
     cores        = optional(number, 1)
     cpu_limit    = optional(number, 0) # cores worth of CPU time across all cores, 0 = no cap
     memory       = number              # MiB

@@ -29,6 +29,7 @@ homelab_stack_env:
   KASM_IP: "{{ hostvars['kasm'].ansible_host | default(ansible_host) }}"
   PBS_IP: "{{ hostvars['pbs'].ansible_host | default(ansible_host) }}"
   ADGUARD_IP: "{{ hostvars['adguard-primary'].ansible_host | default(ansible_host) }}"
+  MESHMON_IP: "{{ hostvars['meshmon'].ansible_host | default(ansible_host) }}"
   HA_IP: "{{ lookup('ansible.builtin.env', 'HA_IP') or undef(hint='HA_IP is not set: run through make') }}"
   RPI3_IP: "{{ homelab_rpi3_ip }}"
   PIKVM_IP: "{{ lookup('ansible.builtin.env', 'PIKVM_IP') or undef(hint='PIKVM_IP is not set: run through make') }}"

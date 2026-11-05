@@ -46,6 +46,11 @@
           type: homeassistant
           url: http://{{HOMEPAGE_VAR_HA_IP}}:8123
           key: "{{HOMEPAGE_VAR_HOMEASSISTANT_TOKEN}}"
+    - MeshMonitor:
+        icon: meshtastic.png
+        href: https://meshmon.{{HOMEPAGE_VAR_DOMAIN}}
+        siteMonitor: http://{{HOMEPAGE_VAR_MESHMON_IP}}:3001
+        description: Meshtastic 433/868 MHz + MQTT
 
     - Frigate:
         icon: frigate.png

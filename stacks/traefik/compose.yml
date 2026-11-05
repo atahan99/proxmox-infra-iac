@@ -20,6 +20,7 @@ services:
       DOCKER_HW_IP: ${DOCKER_HW_IP}
       HA_IP: ${HA_IP}
       PLEX_IP: ${PLEX_IP}
+      MESHMON_IP: ${MESHMON_IP}
     command:
       - --providers.docker=true
       - --providers.docker.endpoint=tcp://socket-proxy:2375
