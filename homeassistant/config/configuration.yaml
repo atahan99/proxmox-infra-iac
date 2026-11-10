@@ -19,9 +19,9 @@ http:
 lovelace:
   resource_mode: yaml
   resources:
-    - url: /hacsfiles/lovelace-card-mod/card-mod.js
+    - url: /local/community/lovelace-card-mod/card-mod.js
       type: module
-    - url: /hacsfiles/advanced-camera-card/advanced-camera-card.js
+    - url: /local/community/advanced-camera-card/advanced-camera-card.js
       type: module
   dashboards:
     better-controls:
