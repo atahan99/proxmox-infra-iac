@@ -2,3 +2,7 @@
 docker_engine_keyring_sha256: 1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570
 # Daemon-wide: no container gains privileges through setuid binaries. Kasm turns it off (workspaces may use sudo).
 docker_engine_no_new_privileges: true
+# Nightly `docker image prune -a`: removes every image no container uses, so after a Renovate bump only the
+# version in use stays (old ones filled docker-apps to 100% on 2026-11-17 and Dockhand's deploys failed).
+# Kasm turns it off: idle workspace images have no container but must stay.
+docker_engine_prune_unused: true

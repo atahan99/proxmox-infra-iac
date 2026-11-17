@@ -43,3 +43,46 @@
 # restart kills those deploys halfway.
 - name: Daemon | apply a changed daemon.json before anything runs on this engine
   ansible.builtin.meta: flush_handlers
+
+- name: Maintenance | nightly prune of images no container uses
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item.name }}"
+    content: "{{ item.content }}"
+    mode: "0644"
+  loop:
+    - name: docker-prune-unused.service
+      content: |
+        # Managed by Ansible (docker_engine)
+        [Unit]
+        Description=Remove Docker images no container uses (old versions after updates)
+        After=docker.service
+        Requires=docker.service
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/docker image prune -a -f
+    - name: docker-prune-unused.timer
+      content: |
+        # Managed by Ansible (docker_engine)
+        [Unit]
+        Description=Nightly removal of unused Docker images
+
+        [Timer]
+        OnCalendar=*-*-* 04:15
+        RandomizedDelaySec=15m
+        Persistent=true
+
+        [Install]
+        WantedBy=timers.target
+  loop_control:
+    label: "{{ item.name }}"
+  when: docker_engine_prune_unused
+
+- name: Maintenance | prune timer enabled
+  ansible.builtin.systemd_service:
+    name: docker-prune-unused.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: docker_engine_prune_unused
+  ignore_errors: "{{ ansible_check_mode }}"
