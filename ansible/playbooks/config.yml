@@ -34,6 +34,7 @@
     - role: docker_engine
       vars:
         docker_engine_no_new_privileges: false # workspace images may use sudo
+        docker_engine_prune_unused: false # idle workspace images have no container; kasm prunes untagged ones
     - kasm
 
 - name: ClamAV (scheduled, read-only scans of the USB disk)
