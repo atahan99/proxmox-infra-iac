@@ -2,7 +2,7 @@
 # HA's own config check (`check_config`) on homeassistant/config/, with a dummy secrets.yaml that has
 # the same keys as secrets.yaml.tpl. Needs Docker: runs in CI; locally with Docker running.
 set -euo pipefail
-image=homeassistant/home-assistant:2026.11.1@sha256:6785d1eca68747a524c156faae1b139ed415c07357386ae6fe17291986e59e82
+image=homeassistant/home-assistant:2026.11.2@sha256:493a07e8f6530fc640223f4a0a5248f20a61ca2f718bb1d31efbf08a2c5ea28f
 
 dir=$(mktemp -d)
 trap 'rm -rf "$dir"' EXIT
