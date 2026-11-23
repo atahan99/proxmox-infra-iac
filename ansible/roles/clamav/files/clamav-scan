@@ -19,7 +19,21 @@ for d in $CLAMAV_EXCLUDE; do
   opts+=(--exclude-dir="^$CLAMAV_ROOT/$d(/|\$)")
   prune+=(-path "$CLAMAV_ROOT/$d" -o)
 done
-files() { find "$CLAMAV_ROOT" \( "${prune[@]}" -false \) -prune -o -type f "$@" -print; }
+# --file-list is one path per line, so a path with a newline in it would be split and never scanned (an
+# easy way to hide a file). Those go to a NUL-separated side list and are scanned one by one.
+files() { # <list> [find tests...]
+  local out=$1; shift
+  find "$CLAMAV_ROOT" \( "${prune[@]}" -false \) -prune -o -type f "$@" -path $'*\n*' -print0 >"$out.odd"
+  find "$CLAMAV_ROOT" \( "${prune[@]}" -false \) -prune -o -type f "$@" ! -path $'*\n*' -print >"$out"
+}
+scan_odd() { # <list>: clamscan's worst exit code over the odd paths
+  local f rc=0 r
+  while IFS= read -r -d '' f; do
+    r=0; clamscan "${opts[@]}" -- "$f" || r=$?
+    [ "$r" -le "$rc" ] || rc=$r
+  done <"$1.odd"
+  return "$rc"
+}
 
 case $mode in
   changed)
@@ -28,10 +42,12 @@ case $mode in
     touch "$state/changed.next" # taken before find, so files changed during the scan come up next time
     if [ -e "$stamp" ]; then since=(-cnewer "$stamp"); else since=(-ctime "-$CLAMAV_DAYS"); fi
     list=/run/clamav-scan/changed
-    files "${since[@]}" >"$list"
+    files "$list" "${since[@]}"
     echo "$(wc -l <"$list") files changed since the last scan"
-    rc=0
+    rc=0 rc2=0
     [ ! -s "$list" ] || clamscan "${opts[@]}" --file-list="$list" || rc=$?
+    scan_odd "$list" || rc2=$?
+    [ "$rc2" -le "$rc" ] || rc=$rc2
     # Found (1) or a file error (2) was reported; only a crash or a kill means "scan these again".
     [ "$rc" -gt 2 ] || mv "$state/changed.next" "$stamp"
     exit "$rc"
@@ -42,22 +58,42 @@ case $mode in
       if [ -e "$done" ] && [ -z "$(find "$done" -mtime "+$CLAMAV_FULL_EVERY_DAYS")" ]; then
         exit 0 # the last pass is recent enough
       fi
-      files >"$list.part" && mv "$list.part" "$list"
+      files "$list.part"
+      worst=0
+      scan_odd "$list.part" || worst=$? # few or none: scanned right away, not chunked
+      mv "$list.part" "$list" && rm -f "$list.part.odd" "$state/full.stuck"
       echo 0 >"$pos"
       echo "new full pass: $(wc -l <"$list") files"
     fi
+    worst=${worst:-0}
     total=$(wc -l <"$list")
     until=$(date -d "$CLAMAV_FULL_UNTIL" +%s)
     [ "$until" -gt "$(date +%s)" ] || until=$(date -d "tomorrow $CLAMAV_FULL_UNTIL" +%s) # started by hand late
-    worst=0
     while read -r start <"$pos" && [ "$start" -lt "$total" ]; do
       left=$((until - $(date +%s)))
       [ "$left" -gt 60 ] || { echo "stopped for tonight at $start/$total"; break; }
       chunk=/run/clamav-scan/full.chunk
       tail -n "+$((start + 1))" "$list" | head -n "$CLAMAV_FULL_CHUNK" >"$chunk"
-      rc=0
-      timeout "$left" clamscan "${opts[@]}" --file-list="$chunk" || rc=$?
-      if [ "$rc" -eq 124 ]; then echo "time is up mid-chunk; it is scanned again next night"; break; fi
+      rc=0 out=/run/clamav-scan/full.out
+      timeout "$left" clamscan "${opts[@]}" --file-list="$chunk" >"$out" 2>&1 || rc=$?
+      cat "$out" # to the journal, where clamav-notify finds the FOUND lines
+      if [ "$rc" -eq 124 ]; then
+        # A detection before the cut still alerts tonight; the chunk is redone next night. A chunk that never
+        # fits in one night would stall the pass forever: after 3 nights it is skipped, and that alerts too.
+        grep -q ' FOUND$' "$out" && [ "$worst" -lt 1 ] && worst=1
+        read -r spos snights <"$state/full.stuck" 2>/dev/null || spos=-1 snights=0
+        [ "$spos" = "$start" ] && snights=$((snights + 1)) || snights=1
+        if [ "$snights" -ge 3 ]; then
+          echo "ERROR: files $((start + 1))-$((start + CLAMAV_FULL_CHUNK)) did not finish in 3 nights; skipped"
+          echo $((start + $(wc -l <"$chunk"))) >"$pos"
+          rm -f "$state/full.stuck"
+          worst=2
+        else
+          echo "$start $snights" >"$state/full.stuck"
+          echo "time is up mid-chunk; it is scanned again next night ($snights/3)"
+        fi
+        break
+      fi
       [ "$rc" -le 2 ] || exit "$rc"
       [ "$rc" -le "$worst" ] || worst=$rc
       echo $((start + $(wc -l <"$chunk"))) >"$pos"
