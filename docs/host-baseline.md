@@ -38,6 +38,7 @@ The pbs role adds the PBS storage and the backup job, since they need PBS runnin
 | `homelab-host-backup` | Sun 07:00 | `/etc` and a SQLite `.backup` of the Proxmox config DB to `/mnt/external/Proxmox/host-config/` (12 kept, root-only: it includes `/etc/pve/priv`), then a copy of the PBS export |
 | `homelab-backup-age` | Daily 09:00 | ntfy alert for any guest in an enabled backup job whose newest backup is over 4 days old (or no job at all). Guests tagged `lab` are skipped |
 | `homelab-pending-updates` | Mon 09:00 | One ntfy message listing the pending upgrades on the host and every running LXC |
+| `homelab-kernel-cleanup` | Sun 05:30 | Purges every kernel that Proxmox's keep list (`/etc/apt/apt.conf.d/76pveconf`) doesn't protect, leaving the newest two plus the running, pinned and next-boot ones. Hand-installed kernels are marked auto first so they count |
 
 The PBS config ends up on both disks, so either one can fail. All other jobs are in
 [architecture.md](architecture.md#schedules).

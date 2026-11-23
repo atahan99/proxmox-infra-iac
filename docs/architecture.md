@@ -173,6 +173,7 @@ commit, while a bad OpenTofu or host change can recreate a guest or reboot the s
 | Sat 01:00 | security | ClamAV full scan |
 | Sun 04:00 | host | `pct fstrim` on every running LXC |
 | Sun 04:30 | kasm | Prune untagged Docker images |
+| Sun 05:30 | host | Purge kernels older than the newest two (running and pinned ones are kept) |
 | Sun 06:15 | host | PBS config export to the NVMe |
 | Sun 07:00 | host | `/etc` + Proxmox config DB to the USB disk, plus a copy of the PBS export |
 | Sun 07:15, 08:10, 09:00 | pbs | Prune (last 3, 7 daily, 4 weekly, 2 monthly), garbage collection, verify |

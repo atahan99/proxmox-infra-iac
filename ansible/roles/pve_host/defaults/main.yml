@@ -31,6 +31,9 @@ pve_host_jobs:
   - name: homelab-pending-updates
     description: List the upgrades pending on the host and every LXC
     when: Mon 09:00
+  - name: homelab-kernel-cleanup
+    description: Purge kernels older than the newest two (keeps running and pinned ones)
+    when: Sun 05:30
 
 # Sender token for Proxmox's ntfy webhook and the check scripts above (topic homelab-infra).
 pve_host_ntfy_token: "{{ lookup('pipe', 'pass-cli item view pass://Homelab/ntfy/token_pve') }}"

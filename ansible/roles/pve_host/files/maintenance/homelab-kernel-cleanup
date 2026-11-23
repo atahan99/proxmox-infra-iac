@@ -1,0 +1,17 @@
+#!/bin/bash
+# Managed by Ansible (pve_host). Weekly: purge old kernels. Proxmox's keep list (76pveconf, written by
+# /etc/kernel/postinst.d/proxmox-auto-removal) protects the running kernel, the newest two, and any
+# pinned or next-boot kernel; everything else goes. So: latest + one fallback, plus a pin if you set one.
+set -euo pipefail
+
+# Refresh the keep list for the kernel running now (it is only written at kernel install time).
+/etc/kernel/postinst.d/proxmox-auto-removal
+# A kernel installed by hand is "manual" and never autoremoved; mark them all auto so the keep list decides.
+mapfile -t kernels < <(dpkg-query -W -f '${db:Status-Abbrev} ${Package}\n' |
+  awk '$1 == "ii" && $2 ~ /^proxmox-kernel-[0-9.]+-[0-9]+-pve(-signed)?$/ {print $2}')
+[ "${#kernels[@]}" -eq 0 ] || apt-mark auto "${kernels[@]}" >/dev/null
+
+mapfile -t old < <(apt-get -s autoremove | awk '/^Remv proxmox-kernel-[0-9]/ {print $2}')
+[ "${#old[@]}" -eq 0 ] && exit 0
+echo "Removing: ${old[*]}"
+DEBIAN_FRONTEND=noninteractive apt-get -y purge "${old[@]}"
