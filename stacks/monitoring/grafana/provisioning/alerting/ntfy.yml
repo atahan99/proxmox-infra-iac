@@ -188,7 +188,7 @@ groups:
       - uid: guest-disk-full
         title: Guest disk almost full
         condition: C
-        noDataState: OK # healthy = the query returns nothing
+        noDataState: OK # every guest returns a value; C picks those over the line
         execErrState: Error
         for: 15m
         labels: {severity: warning}
@@ -202,7 +202,7 @@ groups:
               refId: A
               instant: true
               expr: >-
-                (pve_disk_usage_bytes{id=~"lxc/.*"} / pve_disk_size_bytes{id=~"lxc/.*"} > 0.85)
+                (pve_disk_usage_bytes{id=~"lxc/.*"} / pve_disk_size_bytes{id=~"lxc/.*"})
                 * on(id) group_left(name) pve_guest_info
           - refId: B # only expression results reach $values
             datasourceUid: __expr__
@@ -213,13 +213,13 @@ groups:
               refId: C
               type: threshold
               expression: B
-              conditions: [{evaluator: {type: gt, params: [-1]}}]
+              conditions: [{evaluator: {type: gt, params: [0.85]}}]
       # Proxmox counts a guest's memory without its page cache, so this is real use. docker-hw thrashing at
       # its limit (2026-11-05) stalled the whole host.
       - uid: guest-memory-high
         title: Guest memory almost full
         condition: C
-        noDataState: OK # healthy = the query returns nothing
+        noDataState: OK # every guest returns a value; C picks those over the line
         execErrState: Error
         for: 15m
         labels: {severity: warning}
@@ -233,7 +233,7 @@ groups:
               refId: A
               instant: true
               expr: >-
-                (pve_memory_usage_bytes{id=~"(lxc|qemu)/.*"} / pve_memory_size_bytes{id=~"(lxc|qemu)/.*"} > 0.9)
+                (pve_memory_usage_bytes{id=~"(lxc|qemu)/.*"} / pve_memory_size_bytes{id=~"(lxc|qemu)/.*"})
                 * on(id) group_left(name) pve_guest_info
           - refId: B # only expression results reach $values
             datasourceUid: __expr__
@@ -244,7 +244,7 @@ groups:
               refId: C
               type: threshold
               expression: B
-              conditions: [{evaluator: {type: gt, params: [-1]}}]
+              conditions: [{evaluator: {type: gt, params: [0.9]}}]
       # A failed Dockhand pull, clone or deploy leaves a stack on its old image while CI and the release stay
       # green (2026-11-17: disk full; 2026-11-22: GitHub clone errors). One "SYNC ERROR" or "Failed to up"
       # line per failed stack.
