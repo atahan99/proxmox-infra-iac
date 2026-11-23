@@ -79,7 +79,8 @@ lint: export TF_VAR_gateway = 192.0.2.254
 lint: export TF_VAR_dns_vip = 192.0.2.53
 lint: leak-check
 	yamllint .
-	shellcheck $$(git ls-files '*.sh')
+	@# *.sh plus every tracked script with a sh/bash shebang (the root jobs in ansible/roles/*/files have none)
+	shellcheck $$( { git ls-files '*.sh'; git ls-files -z | xargs -0 awk 'FNR == 1 && /^#!.*[\/ ](ba)?sh$$/ {print FILENAME} {nextfile}'; } | sort -u)
 	actionlint
 	zizmor -q .github/workflows
 	stacks/check.sh

@@ -9,8 +9,13 @@ dir=$1
 days=$2
 mkdir -p "$dir"
 out="$dir/kasm_db_backup_$(date +%Y%m%d_%H.%M.%S).tar.gz"
-docker exec kasm_db /bin/bash -c "pg_dump -U kasmapp -w -Ft --exclude-table-data=logs kasm | gzip > /tmp/db_backup.tar.gz"
-docker cp kasm_db:/tmp/db_backup.tar.gz "$out"
+# pipefail inside too: without it a failed pg_dump still leaves a valid (empty) gzip and exit 0.
+docker exec kasm_db /bin/bash -o pipefail -c "pg_dump -U kasmapp -w -Ft --exclude-table-data=logs kasm | gzip > /tmp/db_backup.tar.gz"
+docker cp kasm_db:/tmp/db_backup.tar.gz "$out.part"
 docker exec kasm_db rm -f /tmp/db_backup.tar.gz
+# A pg_dump tar archive always holds toc.dat (no grep -q: an early exit would break tar's pipe under pipefail).
+# Anything else is not a backup: keep the old ones, fail the unit.
+tar tzf "$out.part" | grep -x toc.dat >/dev/null || { rm -f "$out.part"; echo "dump has no toc.dat: not kept" >&2; exit 1; }
+mv "$out.part" "$out"
 find "$dir" -name 'kasm_db_backup_*.tar.gz' -mtime +"$days" -type f -delete
 echo "$out"

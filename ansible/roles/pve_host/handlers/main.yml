@@ -14,6 +14,10 @@
   ansible.builtin.command: systemd-tmpfiles --create /etc/tmpfiles.d/homelab-cpu-power.conf
   changed_when: true
 
+- name: Apply USB disk APM # reload first, so the trigger sees the new rule
+  ansible.builtin.shell: udevadm control --reload && udevadm trigger --action=change --subsystem-match=block --sysname-match='sd[a-z]'
+  changed_when: true
+
 - name: Reexec systemd # reads system.conf.d (the watchdog) without a reboot
   ansible.builtin.systemd_service:
     daemon_reexec: true

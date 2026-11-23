@@ -58,6 +58,18 @@
   when: ansible_facts['mounts'] | selectattr('mount', 'eq', '/mnt/external') | list | length == 0
   changed_when: true
 
+# The Seagate ships at APM 128: the heads park after a few idle seconds and unpark on the next read, about
+# every 30 s here (Load_Cycle_Count 1.33M in 12k hours, rated ~600k). 254 = highest performance that still
+# allows spin-down by timer (none is set), so the heads stay out. Re-applied on every plug-in.
+- name: Hardware | USB disk APM (stop the head parking)
+  ansible.builtin.copy:
+    dest: /etc/udev/rules.d/99-homelab-usb-disk-apm.rules
+    content: |
+      # Managed by Ansible (pve_host)
+      ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]", ENV{ID_MODEL}=="ST5000LM000*", RUN+="/usr/sbin/hdparm -B 254 /dev/%k"
+    mode: "0644"
+  notify: Apply USB disk APM
+
 - name: Hardware | webcam replug sync into docker-hw (lxc-video-sync)
   ansible.builtin.copy:
     src: "maintenance/{{ item.src }}"

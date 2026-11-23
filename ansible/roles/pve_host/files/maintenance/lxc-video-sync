@@ -22,10 +22,11 @@ pct status "$CTID" 2>/dev/null | grep -q running || exit 0
 spec=
 for dev in /dev/video*; do
 	[ -c "$dev" ] || continue
-	set -- $(stat -c '%t %T' "$dev")
-	spec="$spec ${dev#/dev/}:$((0x$1)):$((0x$2))"
+	maj=$(stat -c %t "$dev") min=$(stat -c %T "$dev") # hex
+	spec="$spec ${dev#/dev/}:$((0x$maj)):$((0x$min))"
 done
 
+# shellcheck disable=SC2016 # the inner script expands its own variables, inside the container
 lxc-attach -n "$CTID" -- sh -c '
 	rm -f /dev/video*
 	for e in '"$spec"'; do

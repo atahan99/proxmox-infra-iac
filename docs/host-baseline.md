@@ -23,6 +23,7 @@ disk UUID come from `homelab.env`.
 | Firewall | Datacenter firewall on, inbound DROP; the `management` ipset (the LAN) gets SSH, web UI, SPICE and VNC, plus Beszel (45876) and ping. No guest NIC has `firewall=1`, so guests are not filtered | rpcbind and anything new stay closed. Tailscale users arrive from the tailscale LXC's LAN address. Locked out: PiKVM, `pve-firewall stop` |
 | Boot | `intel_iommu=on iommu=pt`; no USB link power management for the Coral, no UAS for the Seagate disk, USB autosuspend off; `i915` at boot | Stable Coral and USB disk; iGPU for Plex, Frigate, Immich |
 | USB disk | `/mnt/external` in fstab by UUID with `nofail`; the run fails if the disk is missing | A missing disk mustn't block boot, and folders must land on the disk, not the NVMe |
+| USB disk APM | udev rule runs `hdparm -B 254` on the Seagate on every plug-in (was 128) | At 128 the heads parked about every 30 s: Load_Cycle_Count 1.33M in 12k hours, rated ~600k |
 | Webcam | udev rule + `lxc-video-sync` re-create the video devices in docker-hw on every replug | LXC binds devices only at start, so Frigate would see dead nodes |
 | Templates | Debian 13 and Ubuntu 26.04 via `pveam`, checked against Proxmox's signed index | So the OpenTofu token needs no `Sys.Modify` ([ADR 3](adr/3-root-only-steps-in-ansible.md)) |
 | HAOS image | HAOS 18.3 downloaded, SHA-256 checked, unpacked into `local:import/` | OpenTofu imports it as VM 102's disk |

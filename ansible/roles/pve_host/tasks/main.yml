@@ -43,9 +43,9 @@
     state: present
   ignore_errors: "{{ ansible_check_mode }}" # non-free-firmware is only simulated in check mode
 
-- name: Packages | btop (live CPU, temperatures, per-process view)
+- name: Packages | btop (live CPU, temperatures, per-process view), hdparm (the USB disk's APM rule)
   ansible.builtin.apt:
-    name: btop
+    name: [btop, hdparm]
     state: present
 
 # Debian and Proxmox packages are upgraded together by hand (`apt full-upgrade`), never automatically.

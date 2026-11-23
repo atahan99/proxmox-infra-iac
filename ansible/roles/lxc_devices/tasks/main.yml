@@ -14,13 +14,22 @@
   loop: "{{ lxc_devices_containers.keys() | map('string') | list }}"
   register: lxc_devices_conf
 
+# lineinfile replaces the LAST matching line, and a snapshot section ([name] at the end of the file) repeats
+# the keys: it would edit the snapshot and leave the live config as it was. So no edits while one exists.
+- name: Config | refuse containers that have snapshots
+  ansible.builtin.command: grep -c '^\[' /etc/pve/lxc/{{ item }}.conf
+  loop: "{{ lxc_devices_existing }}"
+  register: lxc_devices_snapshots
+  changed_when: false
+  failed_when: lxc_devices_snapshots.stdout | int > 0
+  check_mode: false
+
 - name: Config | root-only lines
   ansible.builtin.lineinfile: &conf_line
     path: "/etc/pve/lxc/{{ item.0.key }}.conf"
     line: "{{ item.1 }}"
     # key: value lines replace their key; raw lxc.* lines only match themselves
     regexp: "{{ '^' ~ (item.1 | regex_escape) ~ '$' if item.1 is match('lxc\\.') else '^' ~ item.1.split(':')[0] ~ ':' }}"
-    insertbefore: '^\[' # stay out of snapshot sections
     unsafe_writes: true # pmxcfs
   loop: "{{ lxc_devices_containers | dict2items | subelements('value.lines', skip_missing=true) }}"
   loop_control:

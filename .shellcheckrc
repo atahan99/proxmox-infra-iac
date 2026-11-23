@@ -1,0 +1,2 @@
+# The scripts source env files that exist only on the servers (/etc/homelab-ntfy.env etc.).
+disable=SC1091
