@@ -27,7 +27,8 @@ On the old server, while it still runs:
       to the Mac and to nas.
 - [ ] Wallos data to the Mac (CT and path as on the old server):
       `ssh root@<old host> "pct exec <ct> -- tar -C /opt/appdata -czf - wallos" > ~/Backups/wallos.tgz`
-- [ ] Immich database dump: `... docker exec immich_postgres pg_dumpall -U postgres | gzip > ~/Backups/immich.sql.gz`
+- [ ] Immich database dump, just in case: `... docker exec immich_postgres pg_dumpall -U postgres | gzip > ~/Backups/immich.sql.gz`.
+      The database lives on the USB disk and survives the rebuild, so nothing restores this unless that copy is lost.
 - [ ] FreshRSS feeds exported as OPML.
 
 GitHub, once per repo: public; Settings → Code security: secret scanning, push protection, dependency graph
@@ -67,7 +68,7 @@ commit (`make release`).
 Forget the old host keys (same IPs, new keys), copy your key to the host, check it:
 
 ```bash
-p=$(sed -n 's/^PVE_IP=\(.*\)\.[0-9]*$/\1/p' homelab.env); for h in 107 180 113 117 120 121 4 132 122 133 118; do ssh-keygen -R $p.$h; done
+p=$(sed -n 's/^PVE_IP=\(.*\)\.[0-9]*$/\1/p' homelab.env); for h in 107 180 113 117 120 121 4 132 122 133 134 118; do ssh-keygen -R $p.$h; done
 ```
 ```bash
 ssh-copy-id root@$(sed -n 's/^PVE_IP=//p' homelab.env)
@@ -140,7 +141,7 @@ make init ENV=prod
 make plan ENV=prod
 ```
 
-Expect `Plan: 10 to add, 0 to change, 0 to destroy.` Two of the ten need more than the apply token may do:
+Expect `Plan: 11 to add, 0 to change, 0 to destroy.` (10 LXCs and the HAOS VM). Two of them need more than the apply token may do:
 docker-hw is privileged, and the HAOS VM sets a boot order. Proxmox asks for `Sys.Modify` on `/` for both
 ([ADR 3](../adr/3-root-only-steps-in-ansible.md)). Grant it for this one run:
 
@@ -205,7 +206,7 @@ stacks (socket-proxy, Traefik, Authelia, Dockhand), then Dockhand set up and eve
 
 ## 8. Restore and first logins (~1 h)
 
-Wallos is the only app with data to copy back. Stop it, unpack, start it:
+Wallos is the only app with data to copy back (the Immich dump from step 0 is only a spare). Stop it, unpack, start it:
 
 ```bash
 ssh root@$(sed -n 's/^PVE_IP=//p' homelab.env) 'pct exec 109 -- docker stop wallos' && ssh root@$(sed -n 's/^PVE_IP=//p' homelab.env) 'pct exec 109 -- tar -C /opt/appdata -xzf -' < ~/Backups/wallos.tgz && ssh root@$(sed -n 's/^PVE_IP=//p' homelab.env) 'pct exec 109 -- docker start wallos'

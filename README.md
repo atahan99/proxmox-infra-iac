@@ -2,7 +2,7 @@
 
 ## Project overview
 
-This repository turns my single-node Proxmox VE homelab into a reproducible infrastructure-as-code system. One Intel N150 mini PC runs ten LXC containers, one Home Assistant OS VM, and 36 Docker Compose stacks with 56 long-running containers. Starting from a blank NVMe, the documented rebuild takes approximately 3 hours, with persistent data reattached or restored from a separate USB disk.
+This repository turns my single-node Proxmox VE homelab into a reproducible infrastructure-as-code system. One Intel N150 mini PC runs ten LXC containers, one Home Assistant OS VM, and 36 Docker Compose stacks. Starting from a blank NVMe, the documented rebuild takes approximately 3 hours, with persistent data reattached or restored from a separate USB disk.
 
 OpenTofu provisions the LXCs and HAOS VM through the Proxmox API using the `bpg/proxmox` provider and least-privilege plan/apply tokens. Its state and plans are encrypted before being committed to Git. Ansible configures the Proxmox host and LXCs, including networking, SSH hardening, security updates, Docker Engine, storage mounts, hardware passthrough, maintenance jobs and services such as AdGuard Home, Tailscale, Samba, Plex, Proxmox Backup Server, Kasm and ClamAV, plus a MeshMonitor appliance for the Meshtastic radios.
 
@@ -29,7 +29,7 @@ Prometheus, Grafana, Loki and Alloy provide metrics, dashboards, logs and alerts
 
 | Guests | Docker | Exposed to the internet | Rebuild |
 |---|---|---|---|
-| 10 LXCs, 1 VM | 36 stacks, 56 containers | Plex only | ~3 h |
+| 10 LXCs, 1 VM | 36 stacks | Plex only | ~3 h |
 
 ## How it works
 
@@ -44,14 +44,15 @@ flowchart LR
 
 ## Getting started
 
+First the tools (Homebrew, `pip install -r requirements-ci.txt`, the Ansible collections), the vault token
+and the SSH key from [workstation.md](docs/runbooks/workstation.md). Then:
+
 ```bash
-brew install opentofu ansible ansible-lint yamllint gitleaks trivy gh jq protonpass/tap/pass-cli
 cp homelab.env.example homelab.env   # fill in your values
 make init ENV=lab && make lint
 ```
 
-The vault token and SSH key setup are in [workstation.md](docs/runbooks/workstation.md); a full rebuild is
-in [install.md](docs/runbooks/install.md).
+A full rebuild is in [install.md](docs/runbooks/install.md).
 
 ## Commands
 
@@ -68,10 +69,14 @@ in [install.md](docs/runbooks/install.md).
 | `make apps ENV=...` | Docker engines, stack secrets, core stacks, Dockhand setup |
 | `make release` | Move `deploy` to `origin/main`, only if CI on that commit is green |
 | `make ha-check` / `make ha-deploy` | Home Assistant config: check / deploy and restart |
+| `make gatus-deploy` | Gatus config to the RPi3 (it alerts through ntfy.sh when the server is down) |
+| `make leak-check` | No LAN address, and no plain `homelab.env` value, in a tracked file (part of `make lint`) |
+| `make login` | Log `pass-cli` in again from the macOS Keychain (other targets do it themselves) |
 | `make pin-kernel VERSION=...` / `make unpin-kernel` | When a new kernel breaks passthrough |
 
-`ENV=lab` is the default and only touches the test container. `apply`, `guests` and `destroy` with
-`ENV=prod` need `CONFIRM=yes`.
+`ENV` defaults to `lab` (`ENV ?= lab`): the throwaway CT 990, plus the real Proxmox host in check mode
+only (`make host-check`). Real runs need `ENV=prod`; `apply`, `guests` and `destroy` with it also
+need `CONFIRM=yes`.
 
 ## Documentation
 

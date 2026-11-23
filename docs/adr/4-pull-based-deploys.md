@@ -1,5 +1,7 @@
 # 4: Apps deploy by pull from a `deploy` branch
 
+**Status.** Accepted. The auto-merge scope is revised by [ADR 11](11-auto-merge-boundary.md) (proposed).
+
 **Decision.** Dockhand on docker-apps polls the repo every 5 minutes and redeploys a stack when its folder
 changes on the `deploy` branch, on docker-apps directly and on docker-hw through Hawser. When CI passes on
 a push to `main`, the `release` workflow fast-forwards `deploy` to that exact commit. `make release` does

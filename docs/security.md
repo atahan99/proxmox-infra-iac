@@ -110,7 +110,8 @@ Supply chain:
 
 - Actions pinned by SHA; linters pinned in `requirements-ci.txt`; gitleaks, OpenTofu and Trivy versions
   pinned in `ci.yml` and bumped by Renovate. The gitleaks and Trivy downloads are checksum-verified.
-- Renovate waits 3 days after a release, pins image digests, and raises OSV and GitHub vulnerability
+- Renovate waits 3 days after a release where the registry publishes a release date (ghcr, lscr and the
+  Forgejo registry don't, so their updates come at once: [ADR 11](adr/11-auto-merge-boundary.md)), pins image digests, and raises OSV and GitHub vulnerability
   alerts.
 - Apt signing keys (Docker, Tailscale, Plex) and the HAOS image are checked against pinned SHA-256 sums;
   LXC templates against Proxmox's signed index.
@@ -131,7 +132,7 @@ Supply chain:
 - No host intrusion detection. An agent costs more CPU and RAM than one N150 with nothing exposed
   justifies.
 - One node, so no high availability.
-- No off-site backup ([ADR 7](adr/7-no-offsite-backup.md)). Recovery point: up to 3 days.
+- No off-site backup yet ([ADR 7](adr/7-no-offsite-backup.md); planned in [ADR 9](adr/9-offsite-recovery-bundle.md)). Recovery point: up to 3 days.
 - The vault must be reachable for a rebuild, mitigated by break-glass access.
 - Self-signed certificates aren't verified. OpenTofu, the Proxmox exporter and Homepage skip
   verification of the Proxmox API, and Traefik does the same towards the other self-signed UIs. Pinning their

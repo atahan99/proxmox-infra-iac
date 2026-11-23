@@ -5,13 +5,13 @@ Everything runs from one Mac: OpenTofu, Ansible, the password manager CLI (`pass
 ## Tools
 
 ```bash
-brew install opentofu ansible ansible-lint yamllint gitleaks trivy gh jq protonpass/tap/pass-cli
+brew install opentofu ansible ansible-lint yamllint shellcheck gitleaks trivy gh jq protonpass/tap/pass-cli
 ansible-galaxy collection install -r ansible/requirements.yml
 gh auth login   # make release reads the CI result with gh
 ```
 
 CI installs the linters from `requirements-ci.txt` (pinned versions); `pip install -r requirements-ci.txt`
-gives the Mac the same ones.
+gives the Mac the same ones, including actionlint and zizmor, which `make lint` needs.
 
 ## Vault access token
 
