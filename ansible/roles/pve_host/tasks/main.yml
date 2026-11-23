@@ -77,10 +77,19 @@
     state: stopped
   loop: [pve-ha-lrm, pve-ha-crm, corosync]
 
-- name: Sysctl | swap only under real memory pressure
+# Swap only under real memory pressure. A soft hang (lockup, task stuck in D state for 5 min) panics, the
+# panic text is saved to EFI pstore (archived by systemd-pstore to /var/lib/systemd/pstore at the next
+# boot), and the box reboots after 10 s. 300 s, not the 120 s default: the USB disk stalls that long
+# under backups without being hung.
+- name: Sysctl | swappiness, panic and reboot on a hang
   ansible.builtin.copy:
     dest: /etc/sysctl.d/99-homelab.conf
-    content: "vm.swappiness = 10\n"
+    content: |
+      vm.swappiness = 10
+      kernel.panic = 10
+      kernel.softlockup_panic = 1
+      kernel.hung_task_timeout_secs = 300
+      kernel.hung_task_panic = 1
     mode: "0644"
   notify: Apply sysctl
 

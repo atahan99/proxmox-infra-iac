@@ -4,15 +4,20 @@ clamav_root: /mnt/external
 # Relative to clamav_root. Not scanned: PBS data and host backups (binary chunks), Frigate recordings,
 # Immich (own photos).
 clamav_exclude: [Backups, Proxmox, FrigateNVR, Personal/Immich, lost+found]
-clamav_days: 2 # the nightly scan covers files modified in the last 2 days
+clamav_days: 2 # first nightly run only: files changed in the last 2 days (later: since the last run)
 clamav_max_filesize: 100M # larger files (videos, ISOs) are skipped quickly
 clamav_max_scansize: 400M # data scanned per archive
 
-clamav_nightly: "*-*-* 03:00" # files changed recently; before the 05:00 backup slot
-clamav_weekly: "Sat 01:00" # everything; clear of the Sunday host/PBS jobs
+clamav_nightly: "*-*-* 00:30" # files changed since the last run: minutes, done before the full slice
+# Full pass: the whole disk every 30 days, a slice per night from 01:00 to 04:45 (clear of the 05:00 backups
+# and the Sunday PBS jobs), resumed where it stopped. A full pass took 4 days in one go (2026-11).
+clamav_full_start: "*-*-* 01:00"
+clamav_full_until: "04:45"
+clamav_full_every_days: 30
+clamav_full_chunk: 500 # files per clamscan run; progress is saved after each
 
 # Resource limits on the scan units (systemd)
-clamav_cpu_quota: 50% # half of one core
+clamav_cpu_quota: 100% # one of the four cores, and only idle time (CPUSchedulingPolicy=idle)
 clamav_memory_max: 2G
 clamav_freshclam_checks: 4 # signature updates per day
 

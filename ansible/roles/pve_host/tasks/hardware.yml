@@ -10,8 +10,40 @@
 - name: Hardware | iGPU driver + WireGuard at boot (guests cannot load modules; Kasm VPN egress needs WireGuard)
   ansible.builtin.copy:
     dest: /etc/modules-load.d/homelab.conf
-    content: "i915\nwireguard\n"
+    content: "i915\nwireguard\niTCO_wdt\n" # iTCO_wdt: the chipset watchdog systemd pings (below)
     mode: "0644"
+
+# The Proxmox kernel boots with the performance governor, which holds every core at full clock (2.9 GHz)
+# even idle, so the box sits at 80-90 °C and the fan never slows. powersave + balance_power still turbos
+# under load. The governor first: intel_pstate refuses EPP changes while the governor is performance.
+- name: Hardware | CPU power, idle-friendly (applied at boot and now)
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/homelab-cpu-power.conf
+    content: |
+      w /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor - - - - powersave
+      w /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference - - - - {{ pve_cpu_epp }}
+    mode: "0644"
+  notify: Apply CPU power
+
+# A hard hang (the host freezes since 2026-10-21) stops systemd pinging the chipset watchdog, so the board
+# resets itself after 30 s instead of waiting for a power-cycle. Not used by Proxmox: watchdog-mux only
+# takes it with HA, which stays off here.
+- name: Hardware | systemd drop-in folder
+  ansible.builtin.file:
+    path: /etc/systemd/system.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Hardware | systemd pings the hardware watchdog
+  ansible.builtin.copy:
+    dest: /etc/systemd/system.conf.d/homelab-watchdog.conf
+    content: |
+      # Managed by Ansible (pve_host)
+      [Manager]
+      RuntimeWatchdogSec=30s
+      RebootWatchdogSec=10min
+    mode: "0644"
+  notify: Reexec systemd
 
 - name: Hardware | USB disk mounted at boot (nofail, so a missing disk cannot block boot)
   ansible.builtin.lineinfile:

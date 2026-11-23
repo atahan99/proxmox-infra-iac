@@ -30,6 +30,9 @@
       CLAMAV_DAYS={{ clamav_days }}
       CLAMAV_MAX_FILESIZE={{ clamav_max_filesize }}
       CLAMAV_MAX_SCANSIZE={{ clamav_max_scansize }}
+      CLAMAV_FULL_UNTIL={{ clamav_full_until }}
+      CLAMAV_FULL_EVERY_DAYS={{ clamav_full_every_days }}
+      CLAMAV_FULL_CHUNK={{ clamav_full_chunk }}
 
 - name: Scan | ntfy sender token (root only)
   ansible.builtin.copy:
@@ -66,6 +69,7 @@
         ExecStart=/usr/local/sbin/clamav-scan %i
         RuntimeDirectory=clamav-scan
         RuntimeDirectoryPreserve=yes
+        StateDirectory=clamav-scan
         # Background job: never competes with anything else on the host.
         Nice=19
         CPUSchedulingPolicy=idle
@@ -89,7 +93,7 @@
       content: |
         # Managed by Ansible (clamav)
         [Unit]
-        Description=Nightly ClamAV scan of recently changed files
+        Description=Nightly ClamAV scan of files changed since the last run
 
         [Timer]
         OnCalendar={{ clamav_nightly }}
@@ -97,15 +101,14 @@
 
         [Install]
         WantedBy=timers.target
-    - name: clamav-scan-weekly.timer
+    - name: clamav-scan-full.timer
       content: |
         # Managed by Ansible (clamav)
         [Unit]
-        Description=Weekly full ClamAV scan
+        Description=Nightly slice of the full ClamAV pass
 
         [Timer]
-        OnCalendar={{ clamav_weekly }}
-        Persistent=true
+        OnCalendar={{ clamav_full_start }}
         Unit=clamav-scan@full.service
 
         [Install]
@@ -113,11 +116,23 @@
   loop_control:
     label: "{{ item.name }}"
 
+- name: Scan | the old weekly full scan is gone (replaced by the nightly slices)
+  ansible.builtin.systemd_service:
+    name: clamav-scan-weekly.timer
+    enabled: false
+    state: stopped
+  failed_when: false # absent on new hosts
+
+- name: Scan | the old weekly timer file
+  ansible.builtin.file:
+    path: /etc/systemd/system/clamav-scan-weekly.timer
+    state: absent
+
 - name: Scan | timers enabled
   ansible.builtin.systemd_service:
     name: "{{ item }}"
     enabled: true
     state: started
     daemon_reload: true
-  loop: [clamav-scan-nightly.timer, clamav-scan-weekly.timer]
+  loop: [clamav-scan-nightly.timer, clamav-scan-full.timer]
   ignore_errors: "{{ ansible_check_mode }}" # the units are only simulated in check mode

@@ -17,6 +17,8 @@ disk UUID come from `homelab.env`.
 | Subscription pop-up | Patched, and re-patched by an apt hook after `proxmox-widget-toolkit` updates | |
 | Single node | `pve-ha-lrm`, `pve-ha-crm`, `corosync` off | No cluster |
 | Memory | `vm.swappiness = 10` | No swapping while RAM is free |
+| CPU power | `powersave` governor + EPP `balance_power` (tmpfiles, `pve_cpu_epp`); turbo stays on | The kernel's `performance` default held 2.9 GHz idle: 83-90 °C and a loud fan |
+| Hang recovery | systemd pings the chipset watchdog (`iTCO_wdt`, 30 s); `kernel.panic = 10`, panic on soft lockup and on a task stuck 300 s; panic text kept in EFI pstore (`/var/lib/systemd/pstore` after the reboot) | The host froze about daily (Oct-Nov 2026) with nothing in the journal and waited for a power-cycle |
 | SSH | The Mac's key for root; `PermitRootLogin prohibit-password`, no password login | The root password stays for the web UI and console |
 | Boot | `intel_iommu=on iommu=pt`; no USB link power management for the Coral, no UAS for the Seagate disk, USB autosuspend off; `i915` at boot | Stable Coral and USB disk; iGPU for Plex, Frigate, Immich |
 | USB disk | `/mnt/external` in fstab by UUID with `nofail`; the run fails if the disk is missing | A missing disk mustn't block boot, and folders must land on the disk, not the NVMe |

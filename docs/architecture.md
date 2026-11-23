@@ -164,13 +164,13 @@ commit, while a bad OpenTofu or host change can recreate a guest or reboot the s
 
 | When | Where | Job |
 |---|---|---|
-| Daily 03:00 | security | ClamAV scan of files changed in the last 2 days |
+| Daily 00:30 | security | ClamAV scan of files changed (ctime) since the last finished run |
+| Daily 01:00-04:45 | security | ClamAV full pass in slices: 500-file chunks until 04:45, resumed the next night; a new pass every 30 days |
 | Daily 03:30 | host, kasm | Scrutiny SMART collection; Kasm database dump |
 | Daily 04:30 | HAOS | Pending updates (add-ons and HACS, then Core and OS) |
 | Every 3 days 05:00 | host | vzdump of every guest except pbs and security to PBS |
 | Daily 09:00 | host | Alert if a guest's newest backup is over 4 days old |
 | Mon 09:00 | host | ntfy list of upgrades pending on the host and every LXC |
-| Sat 01:00 | security | ClamAV full scan |
 | Sun 04:00 | host | `pct fstrim` on every running LXC |
 | Sun 04:30 | kasm | Prune untagged Docker images |
 | Sun 05:30 | host | Purge kernels older than the newest two (running and pinned ones are kept) |

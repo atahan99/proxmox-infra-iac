@@ -52,6 +52,18 @@
       no_log: "{{ not (kasm_debug | default(false) | bool) }}" # kasm_debug=true shows the error (lab only)
       when: not ansible_check_mode
 
+# The installer's `apt-get install wireguard` also pulled a kernel image (see common's no-kernel pin);
+# egress only needs the tools, the module is the host's.
+- name: Install | WireGuard tools only, no kernel packages
+  ansible.builtin.apt:
+    name: wireguard-tools
+- name: Install | drop the wireguard meta-package and the kernels it pulled in
+  ansible.builtin.apt:
+    name: [wireguard, "linux-image-*"]
+    state: absent
+    purge: true
+    autoremove: true
+
 - name: Maintenance | weekly prune of untagged images (never -a, so idle workspace images stay) + nightly DB dump
   ansible.builtin.copy:
     dest: "/etc/systemd/system/{{ item.name }}"

@@ -1,15 +1,17 @@
 #!/bin/bash
 # Managed by Ansible (clamav). Scan the USB disk with ClamAV. Report only: nothing is moved or deleted.
-#   clamav-scan changed   files modified in the last CLAMAV_DAYS days (nightly)
-#   clamav-scan full      everything (weekly)
+#   clamav-scan changed   files changed since the last finished run (nightly)
+#   clamav-scan full      the whole disk, a slice per night: a new pass every CLAMAV_FULL_EVERY_DAYS days,
+#                         scanned in chunks until CLAMAV_FULL_UNTIL, then resumed the next night
 # Exit codes are clamscan's: 0 clean, 1 something found, 2 error. Non-zero fails the unit, which
 # triggers clamav-notify.
 set -euo pipefail
-. /etc/clamav-scan.conf # CLAMAV_ROOT, CLAMAV_EXCLUDE (space-separated, relative), CLAMAV_DAYS, CLAMAV_MAX_*
+. /etc/clamav-scan.conf # CLAMAV_ROOT, CLAMAV_EXCLUDE, CLAMAV_DAYS, CLAMAV_MAX_*, CLAMAV_FULL_*
+state=/var/lib/clamav-scan # StateDirectory=
 
 mode=${1:?usage: clamav-scan changed|full}
 exec 9>/run/clamav-scan/lock
-flock 9 # the nightly and the weekly scan never run at the same time
+flock 9 # the two scans never run at the same time
 
 opts=(--infected --max-filesize="$CLAMAV_MAX_FILESIZE" --max-scansize="$CLAMAV_MAX_SCANSIZE")
 prune=()
@@ -17,17 +19,54 @@ for d in $CLAMAV_EXCLUDE; do
   opts+=(--exclude-dir="^$CLAMAV_ROOT/$d(/|\$)")
   prune+=(-path "$CLAMAV_ROOT/$d" -o)
 done
+files() { find "$CLAMAV_ROOT" \( "${prune[@]}" -false \) -prune -o -type f "$@" -print; }
 
 case $mode in
   changed)
+    # ctime, not mtime: a file copied in with its old date (cp -p, rsync -t) still counts as new.
+    stamp=$state/changed.stamp
+    touch "$state/changed.next" # taken before find, so files changed during the scan come up next time
+    if [ -e "$stamp" ]; then since=(-cnewer "$stamp"); else since=(-ctime "-$CLAMAV_DAYS"); fi
     list=/run/clamav-scan/changed
-    find "$CLAMAV_ROOT" \( "${prune[@]}" -false \) -prune -o -type f -mtime "-$CLAMAV_DAYS" -print >"$list"
-    echo "$(wc -l <"$list") files changed in the last $CLAMAV_DAYS days"
-    [ -s "$list" ] || exit 0
-    exec clamscan "${opts[@]}" --file-list="$list"
+    files "${since[@]}" >"$list"
+    echo "$(wc -l <"$list") files changed since the last scan"
+    rc=0
+    [ ! -s "$list" ] || clamscan "${opts[@]}" --file-list="$list" || rc=$?
+    # Found (1) or a file error (2) was reported; only a crash or a kill means "scan these again".
+    [ "$rc" -gt 2 ] || mv "$state/changed.next" "$stamp"
+    exit "$rc"
     ;;
   full)
-    exec clamscan "${opts[@]}" --recursive "$CLAMAV_ROOT"
+    list=$state/full.list pos=$state/full.pos done=$state/full.done
+    if [ ! -e "$list" ]; then
+      if [ -e "$done" ] && [ -z "$(find "$done" -mtime "+$CLAMAV_FULL_EVERY_DAYS")" ]; then
+        exit 0 # the last pass is recent enough
+      fi
+      files >"$list.part" && mv "$list.part" "$list"
+      echo 0 >"$pos"
+      echo "new full pass: $(wc -l <"$list") files"
+    fi
+    total=$(wc -l <"$list")
+    until=$(date -d "$CLAMAV_FULL_UNTIL" +%s)
+    [ "$until" -gt "$(date +%s)" ] || until=$(date -d "tomorrow $CLAMAV_FULL_UNTIL" +%s) # started by hand late
+    worst=0
+    while read -r start <"$pos" && [ "$start" -lt "$total" ]; do
+      left=$((until - $(date +%s)))
+      [ "$left" -gt 60 ] || { echo "stopped for tonight at $start/$total"; break; }
+      chunk=/run/clamav-scan/full.chunk
+      tail -n "+$((start + 1))" "$list" | head -n "$CLAMAV_FULL_CHUNK" >"$chunk"
+      rc=0
+      timeout "$left" clamscan "${opts[@]}" --file-list="$chunk" || rc=$?
+      if [ "$rc" -eq 124 ]; then echo "time is up mid-chunk; it is scanned again next night"; break; fi
+      [ "$rc" -le 2 ] || exit "$rc"
+      [ "$rc" -le "$worst" ] || worst=$rc
+      echo $((start + $(wc -l <"$chunk"))) >"$pos"
+    done
+    if [ "$(cat "$pos")" -ge "$total" ]; then
+      rm -f "$list" "$pos" && touch "$done"
+      echo "full pass finished ($total files)"
+    fi
+    exit "$worst"
     ;;
   *)
     echo "unknown mode: $mode" >&2

@@ -13,3 +13,6 @@ pve_kernel_cmdline: >-
   quiet intel_iommu=on iommu=pt usbcore.quirks=1a6e:089a:k,18d1:9302:k
   usbcore.autosuspend=-1 usb-storage.quirks=0bc2:2037:u
 pve_usb_disk_uuid: "{{ lookup('ansible.builtin.env', 'PVE_USB_DISK_UUID') or undef(hint='PVE_USB_DISK_UUID is not set: run through make') }}" # /mnt/external (ext4)
+# CPU energy/performance preference (tasks/hardware.yml): balance_power idles low and still turbos under
+# load. power = coolest and slowest; balance_performance = the kernel's usual default.
+pve_cpu_epp: balance_power

@@ -13,7 +13,8 @@ if [ -n "$found" ]; then
   prio=high tags=rotating_light
 else
   title="ClamAV: scan failed on $(hostname)"
-  body="$(journalctl "${run[@]}" -n 15 -o cat)"
+  # clamscan's per-file errors come first (the reason for exit 2), then the run's last lines.
+  body="$(journalctl "${run[@]}" -o cat | grep -E 'ERROR|WARNING' | tail -10 || true)"$'\n\n'"$(journalctl "${run[@]}" -n 15 -o cat)"
   prio=default tags=warning
 fi
 curl -fsS --max-time 30 ${NTFY_RESOLVE:+--resolve "$NTFY_RESOLVE"} -H "Authorization: Bearer $NTFY_TOKEN" -H "Title: $title" \

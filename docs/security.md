@@ -117,7 +117,7 @@ Supply chain:
 - Dockhand scans running images (Grype/Trivy).
 - ClamAV runs on its own LXC with the USB disk read-only, so a scanner exploit can't change files. It
   skips `Backups`, `Proxmox`, `FrigateNVR`, `Personal/Immich` and files over 100 MB, never moves or deletes
-  anything, and runs at half a core with 2 GB RAM. Detections go to ntfy `homelab-security`.
+  anything, and runs on idle CPU time only (at most one core) with 2 GB RAM. Detections go to ntfy `homelab-security`.
 
 ## Accepted trade-offs
 

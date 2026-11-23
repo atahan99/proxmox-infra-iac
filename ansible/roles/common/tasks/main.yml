@@ -21,6 +21,18 @@
     content: "{{ timezone }}\n"
     mode: "0644"
 
+# An LXC runs the host's kernel, so a kernel package is dead weight (~500 MB per version, upgraded and kept
+# by unattended-upgrades). Debian's `wireguard` package pulled one into Kasm (it depends on wireguard-modules).
+- name: Apt | never install a kernel in a container
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/homelab-no-kernel
+    content: |
+      # Managed by Ansible (common): containers use the Proxmox host's kernel.
+      Package: linux-image-* linux-headers-* wireguard-dkms
+      Pin: release *
+      Pin-Priority: -1
+    mode: "0644"
+
 - name: Baseline | unattended upgrades, key-only SSH (shared with the Proxmox host)
   ansible.builtin.import_tasks: baseline.yml
 

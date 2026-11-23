@@ -183,3 +183,97 @@ groups:
               type: threshold
               expression: A
               conditions: [{evaluator: {type: gt, params: [-1]}}]
+      # A full guest disk stopped Dockhand's pulls and clones without a word (2026-11-17), so warn early.
+      # pve-exporter reports a container's rootfs; for the HAOS VM it has no disk usage, so only LXCs match.
+      - uid: guest-disk-full
+        title: Guest disk almost full
+        condition: C
+        noDataState: OK # healthy = the query returns nothing
+        execErrState: Error
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.id }} ({{ $labels.name }}) root disk is {{ humanizePercentage $values.B.Value }} full"
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 900, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                (pve_disk_usage_bytes{id=~"lxc/.*"} / pve_disk_size_bytes{id=~"lxc/.*"} > 0.85)
+                * on(id) group_left(name) pve_guest_info
+          - refId: B # only expression results reach $values
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, reducer: last, expression: A}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [-1]}}]
+      # Proxmox counts a guest's memory without its page cache, so this is real use. docker-hw thrashing at
+      # its limit (2026-11-05) stalled the whole host.
+      - uid: guest-memory-high
+        title: Guest memory almost full
+        condition: C
+        noDataState: OK # healthy = the query returns nothing
+        execErrState: Error
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.id }} ({{ $labels.name }}) uses {{ humanizePercentage $values.B.Value }} of its memory"
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 900, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                (pve_memory_usage_bytes{id=~"(lxc|qemu)/.*"} / pve_memory_size_bytes{id=~"(lxc|qemu)/.*"} > 0.9)
+                * on(id) group_left(name) pve_guest_info
+          - refId: B # only expression results reach $values
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, reducer: last, expression: A}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [-1]}}]
+      # A failed Dockhand pull, clone or deploy leaves a stack on its old image while CI and the release stay
+      # green (2026-11-17: disk full; 2026-11-22: GitHub clone errors). One "SYNC ERROR" or "Failed to up"
+      # line per failed stack.
+      - uid: dockhand-deploy-failed
+        title: Dockhand deploy failed
+        condition: C
+        noDataState: OK # healthy = no matching log lines
+        execErrState: Error
+        for: 0s
+        labels: {severity: warning}
+        annotations:
+          summary: "Dockhand: {{ $values.B.Value }} failed sync or deploy line(s) in 15 min (Logs dashboard, container=dockhand)"
+        data:
+          - refId: A
+            datasourceUid: loki
+            relativeTimeRange: {from: 900, to: 0}
+            model:
+              refId: A
+              queryType: instant
+              expr: >-
+                sum(count_over_time({container="dockhand"}
+                |~ "(?i)(sync error|failed to up|deployfailed=true|no space left)" [15m]))
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, reducer: last, expression: A}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0]}}]
