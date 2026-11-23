@@ -1,7 +1,7 @@
 # Architecture
 
 One Proxmox VE 9 server (GMKtec NucBox G3 Plus: Intel N150, one NVMe, one USB disk for data and backups)
-runs 9 LXCs and the Home Assistant VM, with 36 Docker stacks (56 containers) on them.
+runs 10 LXCs and the Home Assistant VM, with 36 Docker stacks on them.
 
 The repo covers the Proxmox host, its guests and every container. It doesn't cover the OpenWrt router, the
 Raspberry Pi 3 (AdGuard replica, keepalived BACKUP, Gatus), or the Cloudflare and Tailscale accounts.
@@ -20,7 +20,7 @@ flowchart TB
     subgraph PVE["Proxmox host .107"]
       HW["CT 104 docker-hw<br/>Frigate, Immich"]
       APPS["CT 109 docker-apps<br/>Traefik, Authelia, Dockhand, apps"]
-      OTHER["nas, plex, kasm, tailscale,<br/>adguard-primary, pbs, security"]
+      OTHER["nas, plex, kasm, tailscale,<br/>adguard-primary, pbs, security, meshmon"]
       HAOS["VM 102 HAOS"]
     end
   end
@@ -43,7 +43,7 @@ host numbers and assumes a /24.
 | 100 | nas | Debian 13 | .180 | 2 / 1 GB / 8 GB | Samba share of the USB disk for the Windows PC |
 | 101 | plex | Ubuntu 26.04 | .113 | 2 / 2 GB / 8 GB | Plex, iGPU transcoding |
 | 102 | haos (VM) | HAOS 18.3 | .118 | 2 / 4 GB / 32 GB | Home Assistant |
-| 103 | kasm | Debian 13 | .117 | 4 / 8 GB / 120 GB | Kasm Workspaces |
+| 103 | kasm | Debian 13 | .117 | 4 / 6 GB / 120 GB | Kasm Workspaces |
 | 104 | docker-hw | Debian 13 | .120 | 4 / 8 GB / 50 GB | Frigate (Coral, webcam, iGPU), Immich. **Privileged** |
 | 105 | tailscale | Debian 13 | .121 | 2 / 512 MB / 8 GB | Subnet router and exit node |
 | 106 | adguard-primary | Debian 13 | .4, VIP .5 | 2 / 1 GB / 12 GB | DNS, keepalived MASTER |
@@ -167,6 +167,7 @@ commit, while a bad OpenTofu or host change can recreate a guest or reboot the s
 | Daily 00:30 | security | ClamAV scan of files changed (ctime) since the last finished run |
 | Daily 01:00-04:45 | security | ClamAV full pass in slices: 500-file chunks until 04:45, resumed the next night; a new pass every 30 days |
 | Daily 03:30 | host, kasm | Scrutiny SMART collection; Kasm database dump |
+| Daily 04:15 | docker-apps, docker-hw | `docker image prune -a`: every image no container uses |
 | Daily 04:30 | HAOS | Pending updates (add-ons and HACS, then Core and OS) |
 | Every 3 days 05:00 | host | vzdump of every guest except pbs and security to PBS |
 | Daily 09:00 | host | Alert if a guest's newest backup is over 4 days old |

@@ -100,6 +100,29 @@
     unsafe_writes: true # pmxcfs
   loop: "{{ ssh_authorized_keys }}"
 
+# Host firewall: LAN only. The `management` ipset gets SSH, the web UI, SPICE and VNC (Proxmox's built-in
+# management rules); rpcbind (111) and anything new are dropped. Tailscale users arrive SNATed from the
+# tailscale LXC's LAN address, so they count as LAN. No guest NIC sets firewall=1, so guests are unaffected.
+# Locked out: PiKVM console, then `pve-firewall stop`.
+- name: Firewall | datacenter rules (LAN only)
+  ansible.builtin.copy:
+    dest: /etc/pve/firewall/cluster.fw
+    unsafe_writes: true # pmxcfs
+    content: |
+      # Managed by Ansible (pve_host)
+      [OPTIONS]
+      enable: 1
+      policy_in: DROP
+      policy_out: ACCEPT
+
+      [IPSET management] # LAN: Proxmox allows SSH, web UI, SPICE and VNC from it
+      {{ homelab_lan_cidr }}
+
+      [RULES]
+      IN ACCEPT -source +management -p tcp -dport 45876 -log nolog # Beszel agent (hub on docker-apps)
+      IN ACCEPT -source +management -p icmp -log nolog # ping
+    mode: "0640"
+
 - name: Backups | host-config folders on the USB disk
   ansible.builtin.file:
     path: "/mnt/external/Proxmox/{{ item }}"
