@@ -6,6 +6,7 @@ services:
     image: fnsys/dockhand:v1.0.58@sha256:515c6e0f28cf3922c51a2dfd3463b972880e40418c2464b1bc91b8a3afe66c7f
     container_name: dockhand
     restart: unless-stopped
+    mem_reservation: 512m # kept in RAM when docker-apps runs short; apps die first (ADR 8)
     environment:
       DATA_DIR: /opt/dockhand
       # Straight to Authelia (OIDC, set up by dockhand_config); /login?local=1 still shows the form.

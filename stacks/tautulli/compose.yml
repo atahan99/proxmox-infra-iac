@@ -5,6 +5,7 @@ services:
     image: ghcr.io/tautulli/tautulli:v2.19.1@sha256:239cd6dbc429a0eb441bdf88a7a015871e2d4d6e02b6e6039af30c0487528a8e
     container_name: tautulli
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     environment:
       PUID: "1000"
       PGID: "1000"

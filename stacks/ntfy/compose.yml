@@ -11,6 +11,7 @@ services:
     image: binwiederhier/ntfy:v2.38.1@sha256:038da2be5e668fee6d36a62884eea48975e1b71c29a56964e5298c1b9165a573
     container_name: ntfy
     restart: unless-stopped
+    mem_reservation: 128m # kept in RAM when docker-apps runs short; apps die first (ADR 8)
     command: [serve]
     env_file:
       - path: /opt/secrets/ntfy-users.env # NTFY_AUTH_USERS

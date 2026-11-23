@@ -8,6 +8,7 @@ services:
     container_name: syncthing
     hostname: docker-lxc-syncthing # the device name other devices know
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     environment:
       PUID: "1000"
       PGID: "1000"

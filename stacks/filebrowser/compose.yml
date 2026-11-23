@@ -9,6 +9,8 @@ services:
   filebrowser-init:
     image: busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
     restart: "no"
+    mem_limit: 1g # its jobs spike; it OOMs alone
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     command: [chown, "1000:1000", /data]
     volumes:
       - /opt/appdata/filebrowser:/data
@@ -18,6 +20,7 @@ services:
     image: gtstef/filebrowser:2.0.2-stable@sha256:de2b4c4d18485ea202ab2cdada5bd25d8f0b8ed071712c8216a67194c31285ae
     container_name: filebrowser
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     depends_on:
       filebrowser-init: {condition: service_completed_successfully}
     env_file:

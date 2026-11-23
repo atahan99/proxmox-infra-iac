@@ -7,6 +7,7 @@ services:
     image: sissbruecker/linkding:1.47.0@sha256:e35cb50e0581178f245125ffaa909c565416c94c9f22ace305a7d234a4345522
     container_name: linkding
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     env_file:
       - path: /opt/secrets/linkding.env # LD_SUPERUSER_NAME (the Authelia username)
         required: false

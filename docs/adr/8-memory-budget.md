@@ -1,12 +1,19 @@
 # 8: A memory budget under the host's 32 GB
 
-**Status.** Proposed. The Grafana alert and some limits are in place.
+**Status.** The guard inside docker-apps and Kasm at 6 GB are accepted and in place (2026-11-24); the
+~28 GB budget is proposed.
 
 **Decision.** The guests' RAM in `tofu/prod.tfvars` adds up to at most ~28 GB, leaving the host and its page
-cache some room. Today it is 38.5 GB (10 LXCs 34.5 GB + HAOS 4 GB), 36.5 GB
-once Kasm goes from 8 GB to 6 GB. Inside the Docker hosts, heavy containers get a `mem_limit` (Frigate,
-Immich machine learning, Prometheus and Loki have one; Kasm workspaces don't yet), and the core services
-(Traefik, Authelia, ntfy, Dockhand) get a negative `oom_score_adj`, so the OOM killer picks an app first.
+cache some room. It is 36.5 GB now (10 LXCs 32.5 GB + HAOS 4 GB; Kasm went from 8 GB to 6 GB). Inside
+docker-apps:
+- Every app service sets `oom_score_adj: 500`, so when the LXC runs out the OOM killer takes an app, never
+  Traefik, Authelia, ntfy or Dockhand. A negative value would be simpler but an unprivileged LXC silently
+  turns it into 0.
+- The core services set `mem_reservation` (cgroup `memory.low`), so their memory isn't reclaimed when the
+  LXC is short.
+- Apps whose jobs spike set a `mem_limit` (ConvertX, code-server, changedetection, MeTube, Calibre-Web,
+  Mealie, File Browser; Stirling-PDF, SearXNG, Prometheus and Loki already had one), so they die alone.
+On docker-hw, Frigate and Immich already have limits; Kasm workspaces have none yet.
 Grafana alerts when a guest uses over 90% of its memory for 15 minutes (`guest-memory-high` in
 `stacks/monitoring/grafana/provisioning/alerting/ntfy.yml`).
 

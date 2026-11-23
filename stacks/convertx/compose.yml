@@ -5,6 +5,8 @@ services:
     image: ghcr.io/c4illin/convertx:v0.20.0@sha256:6259e0c1e063120b1ddbc6937372a83be58182b2c9dc82264f58e100907b3e51
     container_name: convertx
     restart: unless-stopped
+    mem_limit: 2g # its jobs spike; it OOMs alone
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     env_file:
       - path: /opt/secrets/convertx.env # JWT_SECRET
         required: false

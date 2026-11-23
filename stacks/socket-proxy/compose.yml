@@ -5,6 +5,7 @@ services:
     image: wollomatic/socket-proxy:1.13.2@sha256:ff95d6ff6c27853005ef85eb8f4ab5923dc3d2f1e055f98fb6aeeaceec3fe848
     container_name: socket-proxy
     restart: unless-stopped
+    mem_reservation: 32m # kept in RAM when docker-apps runs short; apps die first (ADR 8)
     # Allowlist, not tecnativa's per-section on/off: GET only on what the clients use (no archive/export,
     # which would hand out any container's files). Root, but no capabilities: owner of the socket is
     # enough, and the image has no group to match the LXC's docker gid.

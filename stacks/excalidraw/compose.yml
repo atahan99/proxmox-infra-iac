@@ -6,6 +6,7 @@ services:
     image: excalidraw/excalidraw:latest@sha256:f7ee194addd607bf831d2af0f0a34463dd4225e426cf35199ef0b12a803398e9
     container_name: excalidraw
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     networks: [proxy]
     labels:
       traefik.enable: "true"

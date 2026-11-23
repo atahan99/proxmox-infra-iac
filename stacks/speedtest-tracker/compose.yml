@@ -6,6 +6,7 @@ services:
     image: lscr.io/linuxserver/speedtest-tracker:1.15.1@sha256:132d35a355474be17822e2ff3df4866407187ca978a768935fea06f52ae24493
     container_name: speedtest-tracker
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     env_file:
       - path: /opt/secrets/speedtest-tracker.env # APP_KEY, ADMIN_EMAIL, ADMIN_PASSWORD
         required: false

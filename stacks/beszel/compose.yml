@@ -9,6 +9,7 @@ services:
     image: henrygd/beszel:0.21.2@sha256:b0be90bd4aee2993fde763032a5098ce4386fba43cfe5031ec017b8d9e8c97a2
     container_name: beszel
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     environment:
       APP_URL: https://beszel.${DOMAIN:?DOMAIN is set in the stack's .env}
       TRUSTED_AUTH_HEADER: Remote-Email
@@ -29,6 +30,7 @@ services:
     image: henrygd/beszel-agent:0.21.2@sha256:343254226ae57a5cc6f8c23c755b1464730aba2abc7043116a2e222711ec6e1a
     container_name: beszel-agent
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     env_file:
       - path: /opt/secrets/beszel-agent.env # KEY: the hub's public key (vault beszel/hub_pubkey)
         required: false

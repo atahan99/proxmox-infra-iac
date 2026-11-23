@@ -6,6 +6,8 @@ services:
     image: lscr.io/linuxserver/changedetection.io:0.70.2@sha256:272d518260894be71d6ea2999fb83a36b6ac170deac0f9c0c379525735bbda5a
     container_name: changedetection
     restart: unless-stopped
+    mem_limit: 1g # its jobs spike; it OOMs alone
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     environment:
       PUID: "1000"
       PGID: "1000"

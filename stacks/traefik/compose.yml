@@ -6,6 +6,7 @@ services:
     image: traefik:v3.7.19@sha256:a6c0194dda77bcb804824580f36fa7edc56e315b1acfe933366c8b52844a78a4
     container_name: traefik
     restart: unless-stopped
+    mem_reservation: 128m # kept in RAM when docker-apps runs short; apps die first (ADR 8)
     env_file:
       - path: /opt/secrets/traefik.env # CF_DNS_API_TOKEN
         required: false

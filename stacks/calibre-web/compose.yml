@@ -7,6 +7,8 @@ services:
     image: crocodilestick/calibre-web-automated:v4.0.8@sha256:5e00373854247750cc3e4479b492ae09293ff5e06ed10177f226634d97888679
     container_name: calibre-web
     restart: unless-stopped
+    mem_limit: 1g # its jobs spike; it OOMs alone
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     environment:
       PUID: "1000"
       PGID: "1000"

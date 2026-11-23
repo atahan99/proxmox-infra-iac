@@ -7,6 +7,8 @@ services:
     image: lscr.io/linuxserver/code-server:4.146.0@sha256:027b1da4cece4b7ae987aad0fbc50955d8c66f48583b55fe51e3385576be8cf1
     container_name: code-server
     restart: unless-stopped
+    mem_limit: 2g # its jobs spike; it OOMs alone
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     environment:
       PUID: "1000"
       PGID: "1000"

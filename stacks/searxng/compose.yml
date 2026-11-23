@@ -6,6 +6,7 @@ services:
     image: searxng/searxng:2026.10.4-d48c4b555@sha256:76b0bf285aca014c7191fc4d9234c4bfb358624ac33d8883833d496c059ec072
     container_name: searxng
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     mem_limit: 1g
     env_file:
       - path: /opt/secrets/searxng.env # SEARXNG_SECRET

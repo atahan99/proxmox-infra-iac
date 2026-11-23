@@ -10,6 +10,7 @@ services:
     image: code.forgejo.org/forgejo/forgejo:17.0.2@sha256:879f4f10a98e3e167b32cde5f7ae3af0163d50bfacf567559a27a0e95a95670c
     container_name: forgejo
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     environment:
       USER_UID: "1000"
       USER_GID: "1000"
@@ -56,6 +57,7 @@ services:
   gitea-mirror-init:
     image: busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
     restart: "no"
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     command: [chown, "1001:1001", /data] # the image's user; Docker creates the folder as root
     volumes:
       - /opt/appdata/gitea-mirror:/data
@@ -65,6 +67,7 @@ services:
     image: ghcr.io/raylabshq/gitea-mirror:v3.54.0@sha256:be5600216ff8a152ea7ddd9152c68cc94b56886e85bf44fe67853ee1bcac2ada
     container_name: gitea-mirror
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     depends_on:
       gitea-mirror-init: {condition: service_completed_successfully}
     env_file:

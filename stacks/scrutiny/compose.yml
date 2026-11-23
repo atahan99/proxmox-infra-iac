@@ -7,6 +7,7 @@ services:
     image: ghcr.io/analogj/scrutiny:v0.10.0-web@sha256:1a3eb7802907e48c960c06b412592969efe5514b9c01b70fa634076f7e675adf
     container_name: scrutiny
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     env_file:
       - path: /opt/secrets/scrutiny.env # SCRUTINY_NOTIFY_URLS (ntfy with Scrutiny's token)
         required: false
@@ -30,6 +31,7 @@ services:
     image: influxdb:2.10.1@sha256:33f4eef7ca7859f3c24021c5fa20a4ca7d1d34f049bb011c32787a35cf096b85
     container_name: scrutiny-influxdb
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     volumes:
       - /opt/appdata/scrutiny/influxdb:/var/lib/influxdb2
     healthcheck:

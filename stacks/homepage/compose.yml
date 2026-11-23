@@ -6,6 +6,7 @@ services:
     image: ghcr.io/gethomepage/homepage:v2.8.0@sha256:019d8f063a7299e7c1c51ee4a70b692291809af3244894fbec2c2ac7d1f71b18
     container_name: homepage
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     env_file:
       - path: /opt/secrets/homepage.env # HOMEPAGE_VAR_* (API keys and logins of the widgets)
         required: false

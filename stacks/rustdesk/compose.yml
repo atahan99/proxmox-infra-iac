@@ -7,6 +7,7 @@ services:
     image: rustdesk/rustdesk-server:1.1.16@sha256:8ecdab65deb7c84652a626380e31d11a8f1fbafd97916d57f95c20628f943c00
     container_name: hbbs
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     command: [hbbs]
     depends_on: [hbbr]
     volumes:
@@ -22,6 +23,7 @@ services:
     image: rustdesk/rustdesk-server:1.1.16@sha256:8ecdab65deb7c84652a626380e31d11a8f1fbafd97916d57f95c20628f943c00
     container_name: hbbr
     restart: unless-stopped
+    oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
     command: [hbbr]
     volumes:
       - /opt/appdata/rustdesk/hbbr:/root
