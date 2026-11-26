@@ -64,7 +64,7 @@ services:
     network_mode: none
 
   gitea-mirror:
-    image: ghcr.io/raylabshq/gitea-mirror:v3.56.1@sha256:b07c6c1bd705729e51838a2fa7205bc037db1ab0474f52e2def16009c5fa68d3
+    image: ghcr.io/raylabshq/gitea-mirror:v3.58.1@sha256:780ceb3be5b66efee80dd8e54f5fffd32ff58f031033e83c1d95e4bea4dcf438
     container_name: gitea-mirror
     restart: unless-stopped
     oom_score_adj: 500 # killed before Traefik, Authelia, ntfy and Dockhand (ADR 8)
